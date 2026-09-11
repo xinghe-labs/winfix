@@ -1,0 +1,24 @@
+{
+  "mode": "disk",
+  "generated_at": "2026-06-14T12:25:30",
+  "drives": [
+    {
+      "device": "C:",
+      "size_bytes": 213621141504,
+      "free_bytes": 30628515840,
+      "free_percent": 14.3,
+      "status": "watch"
+    }
+  ],
+  "candidates": [
+    {
+      "path": "C:\\Users\\Example\\AppData\\Local\\Temp",
+      "exists": true,
+      "bytes": 1003136086,
+      "size": "956.67 MB",
+      "scan": "full",
+      "risk": "low"
+    }
+  ]
+}
+

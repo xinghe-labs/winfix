@@ -1,0 +1,29 @@
+{
+  "mode": "health",
+  "generated_at": "2026-06-14T12:25:34",
+  "summary": {
+    "computer": "EXAMPLE-PC",
+    "uptime_days": 3.8,
+    "memory_used_percent": 77.6,
+    "critical_or_error_events_last_3_days": 7,
+    "problem_devices": 0,
+    "defender_realtime": false,
+    "drive_status": [
+      {
+        "device": "C:",
+        "free_percent": 14.3,
+        "status": "watch"
+      }
+    ]
+  },
+  "findings": [
+    "One or more drives are low or should be watched.",
+    "Recent critical/error system events exist.",
+    "Defender real-time protection is off."
+  ],
+  "recommended_actions": [
+    "Use the route matching the strongest finding: disk, memory, events, devices, or security.",
+    "Do not run repair commands before reviewing evidence and impact."
+  ]
+}
+

@@ -1,0 +1,4 @@
+display_name: WinFix
+short_description: Diagnose and fix Windows PC issues
+default_prompt: Diagnose this Windows PC problem from the symptom I provide. Inspect first, explain evidence, choose safe fixes, and verify results.
+
