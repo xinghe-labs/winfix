@@ -1,0 +1,33 @@
+name: 问题反馈
+description: winfix 诊断结果不对、建议不妥或脚本报错
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        提交前请先跑一次下面的命令，把完整 JSON 输出贴上来——
+        它已经自动脱敏，不含你的文件名、密码或密钥。
+  - type: textarea
+    id: symptom
+    attributes:
+      label: 现象描述
+      description: 你让 agent 做了什么，它的回答哪里不对？
+  - type: textarea
+    id: diagnosis
+    attributes:
+      label: 诊断输出（必填）
+      description: 粘贴以下命令的完整输出
+      value: |
+        ```text
+        （粘贴处）
+        ```
+      placeholder: |
+        powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode health -Format json
+  - type: textarea
+    id: env
+    attributes:
+      label: 环境
+      value: |
+        - Windows 版本：
+        - PowerShell 版本（$PSVersionTable.PSVersion）：
+        - 宿主（Codex / Claude Code / 其他）：

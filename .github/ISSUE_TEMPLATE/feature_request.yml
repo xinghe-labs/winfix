@@ -1,0 +1,21 @@
+name: 功能建议
+description: 想让 winfix 多一个诊断路线或能力
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 你想解决什么问题？
+      description: 描述场景，而不是直接描述功能
+  - type: textarea
+    id: idea
+    attributes:
+      label: 你期望的行为
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: 安全边界确认
+      description: 新能力必须留在只读诊断范围内，任何删除/写入能力都需要先在 SECURITY.md 说明设计
+      options:
+        - label: 这个功能不需要新增删除用户文件的能力
+          required: true

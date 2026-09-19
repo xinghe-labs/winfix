@@ -6,7 +6,7 @@ Use before publishing the skill to a public marketplace.
 
 1. Run frontmatter validation:
    ```powershell
-   $env:PYTHONUTF8='1'; python "$env:USERPROFILE\.codex\skills\.system\skill-creator\scripts\quick_validate.py" "$env:USERPROFILE\.agents\skills\winfix"
+   $env:PYTHONUTF8='1'; python "$env:USERPROFILE\.codex\skills\.system\skill-creator\scripts\quick_validate.py" "$env:USERPROFILE\.agents\skills\winfix"  （可选：仅 Codex 环境装有 skill-creator 时执行）
    ```
 2. Run smoke tests:
    ```powershell

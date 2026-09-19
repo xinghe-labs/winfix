@@ -26,16 +26,22 @@ WinFix 是一个用于 Windows 电脑维护的 agent skill。你只需要描述�
 
 ## 安装
 
-从 GitHub 安装：
+推荐（自动安装到检测到的所有宿主）：
 
 ```powershell
 npx skills add xinghe-labs/winfix -g
 ```
 
-也可以手动复制到 Codex skills 目录：
+手动安装：把仓库复制到你宿主的 skill 目录，目录内含 `SKILL.md` 即可：
+
+| 宿主 | skill 目录 |
+|---|---|
+| Codex | `%USERPROFILE%\.agents\skills\winfix` 或 `%USERPROFILE%\.codex\skills\winfix` |
+| Claude Code | `%USERPROFILE%\.claude\skills\winfix` |
+| 其他支持 Agent Skills 规范的宿主 | 参照宿主文档 |
 
 ```powershell
-Copy-Item -Recurse . "$env:USERPROFILE\.agents\skills\winfix"
+git clone https://github.com/xinghe-labs/winfix.git "$env:USERPROFILE\.claude\skills\winfix"
 ```
 
 安装后，可以这样问 agent：
@@ -52,12 +58,12 @@ Chrome 内存占用很高
 ## 直接运行脚本
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.agents\skills\winfix\scripts\inspect_windows.ps1" -Mode health
-powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.agents\skills\winfix\scripts\inspect_windows.ps1" -Mode baseline
-powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.agents\skills\winfix\scripts\inspect_windows.ps1" -Mode compare
-powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.agents\skills\winfix\scripts\inspect_windows.ps1" -Mode disk -Format json
-powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.agents\skills\winfix\scripts\inspect_windows.ps1" -Mode net-test -Target "https://www.microsoft.com"
-powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.agents\skills\winfix\scripts\inspect_windows.ps1" -Mode app -ProcessName chrome
+powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode health
+powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode baseline
+powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode compare
+powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode disk -Format json
+powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode net-test -Target "https://www.microsoft.com"
+powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode app -ProcessName chrome
 ```
 
 健康分输出示例（真实机器）：
@@ -75,6 +81,58 @@ startup      65     10 15 startup items
 updates     100      5 last hotfix 5 days ago
 
 Weakest component: stability (21 critical/error events in 3d)
+```
+
+基线对比示例（"感觉变卡了"时跑 `compare`）：
+
+```text
+Baseline: 2026-09-19T12:10:06   Now: 2026-09-19T12:10:10
+=== Drive free-space change ===
+
+Drive Before    Now       Change
+----- ------    -------   --------
+C:    23.18 GB  23.18 GB  -69632 B
+D:    59.25 GB  59.25 GB  0 B
+
+=== Startup items ===
+added: 0   removed: 0
+```
+
+临时清理预览示例（不加 `-Apply` 永远只预览）：
+
+```text
+=== Temp cleanup preview ===
+Nothing has been deleted. Add -Apply to execute the plan below.
+
+Root            Allowed WouldDeleteEntries WouldFree SkippedRecent24h
+----            ------- ------------------ --------- ----------------
+C:\Windows\Temp    True                195 41.90 MB                34
+```
+
+基线对比示例（"感觉变卡了"时跑 `compare`）：
+
+```text
+Baseline: 2026-09-19T12:10:06   Now: 2026-09-19T12:10:10
+=== Drive free-space change ===
+
+Drive Before    Now       Change
+----- ------    -------   --------
+C:    23.18 GB  23.18 GB  -69632 B
+D:    59.25 GB  59.25 GB  0 B
+
+=== Startup items ===
+added: 0   removed: 0
+```
+
+临时清理预览示例（不加 `-Apply` 永远只预览）：
+
+```text
+=== Temp cleanup preview ===
+Nothing has been deleted. Add -Apply to execute the plan below.
+
+Root            Allowed WouldDeleteEntries WouldFree SkippedRecent24h
+----            ------- ------------------ --------- ----------------
+C:\Windows\Temp    True                195 41.90 MB                34
 ```
 
 ## 安全边界

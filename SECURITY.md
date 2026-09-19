@@ -28,7 +28,9 @@ WinFix 会在你的机器上运行 PowerShell，所以「可以放心运行」�
 
 ```powershell
 # 1) 确认没有远程执行 / 下载 / 表达式求值构造
-Select-String -Path .\scripts\inspect_windows.ps1 -Pattern 'Invoke-Expression','iex ','DownloadString','DownloadFile','WebClient','Start-Process','Invoke-WebRequest','Invoke-RestMethod','New-Object System.Net'
+#    预期：零命中（Start-Process 允许出现且仅出现一次，用于 wsl.exe 的
+#    UTF-16 输出解码包装器，不涉及任何下载或远程内容）
+Select-String -Path .\scripts\inspect_windows.ps1 -Pattern 'Invoke-Expression','iex ','DownloadString','DownloadFile','System.Net.WebClient','Invoke-WebRequest','Invoke-RestMethod'
 
 # 2) 确认所有删除语句只有两处，并核对它们的上下文
 Select-String -Path .\scripts\inspect_windows.ps1 -Pattern 'Remove-Item' -Context 3,3

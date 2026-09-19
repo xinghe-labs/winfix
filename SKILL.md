@@ -1,6 +1,6 @@
 ---
 name: winfix
-description: Use when the user asks Codex to inspect, diagnose, clean, repair, or optimize a Windows PC, including disk space, performance, memory, startup, crashes, blue screen clues, Windows Update, drivers, devices, audio, display, printers, security, browser/app issues, WeChat files, WSL/Docker/VM leftovers, proxy/network checks, and developer environment readiness.
+description: Use when the user asks the agent to inspect, diagnose, clean, repair, or optimize a Windows PC, including disk space, performance, memory, startup, crashes, blue screen clues, Windows Update, drivers, devices, audio, display, printers, security, browser/app issues, WeChat files, WSL/Docker/VM leftovers, proxy/network checks, and developer environment readiness.
 ---
 
 # WinFix
@@ -23,22 +23,26 @@ Use this skill for Windows machine care where local state matters. The user may 
 ## Quick Workflow
 
 1. Identify the task category: disk, performance, memory/process, browser, app cache, developer environment, network/proxy, update/driver/device, audio/display/print, security, crash logs, or software leftovers.
-2. Run a read-only inspection first. Prefer the bundled script:
+2. Run a read-only inspection first. Prefer the bundled script (in the
+   examples, `<skill-root>` is where winfix is installed, e.g.
+   `$env:USERPROFILE` + `\.agents\skills\winfix` for Codex or
+   `$env:USERPROFILE` + `\.claude\skills\winfix` for Claude Code; the
+   `npx skills add` installer places it automatically):
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.agents\skills\winfix\scripts\inspect_windows.ps1" -Mode overview
+powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode overview
 ```
 
 For a broad health check before narrowing:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.agents\skills\winfix\scripts\inspect_windows.ps1" -Mode health
+powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode health
 ```
 
 Prefer JSON when the next step needs structured reasoning or comparison:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.agents\skills\winfix\scripts\inspect_windows.ps1" -Mode health -Format json
+powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode health -Format json
 ```
 
 3. Summarize findings with sizes, paths, and risk levels.
@@ -49,7 +53,7 @@ powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.agents\skills\winfix
 For vague symptom prompts, use `-Mode issue`:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.agents\skills\winfix\scripts\inspect_windows.ps1" -Mode issue -Issue "用户原话"
+powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode issue -Issue "用户原话"
 ```
 
 ## Symptom Router
@@ -95,7 +99,7 @@ Check:
 Use:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.agents\skills\winfix\scripts\inspect_windows.ps1" -Mode disk
+powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode disk
 ```
 
 Report top candidates; do not delete from `Downloads`, `Desktop`, `Documents`, or chat file folders without explicit user approval.
@@ -105,10 +109,10 @@ preview-then-apply contract enforced by the script itself:
 
 ```powershell
 # Preview only — the script cannot delete anything without -Apply
-powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.agents\skills\winfix\scripts\inspect_windows.ps1" -Mode cleanup-temp
+powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode cleanup-temp
 
 # Execute only after the user confirms (skips files modified in the last 24h)
-powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.agents\skills\winfix\scripts\inspect_windows.ps1" -Mode cleanup-temp -Apply
+powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode cleanup-temp -Apply
 ```
 
 Then rerun `-Mode disk`.
@@ -130,7 +134,7 @@ Safe first actions:
 Use:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.agents\skills\winfix\scripts\inspect_windows.ps1" -Mode chrome
+powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode chrome
 ```
 
 ### VS Code Or WebView Problems
@@ -145,7 +149,7 @@ If clearing WebView/cache, stop Code first. Preserve settings, keybindings, snip
 Use:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.agents\skills\winfix\scripts\inspect_windows.ps1" -Mode vscode
+powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode vscode
 ```
 
 ### WeChat And Chat Files
@@ -158,7 +162,7 @@ WeChat paths often contain important received files. Never bulk-delete message f
 Use:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.agents\skills\winfix\scripts\inspect_windows.ps1" -Mode wechat
+powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode wechat
 ```
 
 ### Developer Environment Readiness
@@ -182,7 +186,7 @@ Return a readiness verdict: supported, partially supported, or blocked, with exa
 Use:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.agents\skills\winfix\scripts\inspect_windows.ps1" -Mode android
+powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode android
 ```
 
 ### Network And Proxy
@@ -198,13 +202,13 @@ Do not remove a working proxy blindly. If proxy caused a failure, preserve curre
 Use:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.agents\skills\winfix\scripts\inspect_windows.ps1" -Mode network
+powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode network
 ```
 
 If a host or URL is known, test it directly:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.agents\skills\winfix\scripts\inspect_windows.ps1" -Mode net-test -Target "https://example.com"
+powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode net-test -Target "https://example.com"
 ```
 
 ### Any App Problem
@@ -212,7 +216,7 @@ powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.agents\skills\winfix
 When the user names an app that does not have a dedicated route, inspect the process and application event log:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.agents\skills\winfix\scripts\inspect_windows.ps1" -Mode app -ProcessName "appname"
+powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode app -ProcessName "appname"
 ```
 
 Use process names without `.exe` when possible, such as `chrome`, `Code`, `WeChat`, `QQ`, `Photoshop`, or `java`.
@@ -222,19 +226,19 @@ Use process names without `.exe` when possible, such as `chrome`, `Code`, `WeCha
 Use these routes when the symptom is broad, intermittent, or system-level:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.agents\skills\winfix\scripts\inspect_windows.ps1" -Mode system
-powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.agents\skills\winfix\scripts\inspect_windows.ps1" -Mode events
-powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.agents\skills\winfix\scripts\inspect_windows.ps1" -Mode startup
-powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.agents\skills\winfix\scripts\inspect_windows.ps1" -Mode services
-powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.agents\skills\winfix\scripts\inspect_windows.ps1" -Mode drivers
-powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.agents\skills\winfix\scripts\inspect_windows.ps1" -Mode updates
-powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.agents\skills\winfix\scripts\inspect_windows.ps1" -Mode devices
+powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode system
+powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode events
+powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode startup
+powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode services
+powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode drivers
+powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode updates
+powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode devices
 ```
 
 For system repair, start read-only:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.agents\skills\winfix\scripts\inspect_windows.ps1" -Mode repair-check
+powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode repair-check
 ```
 
 Do not run `sfc /scannow`, `DISM /RestoreHealth`, driver removal, registry edits, service resets, or Windows Update component resets without explaining the risk and whether admin PowerShell is required.
@@ -244,11 +248,11 @@ Do not run `sfc /scannow`, `DISM /RestoreHealth`, driver removal, registry edits
 Use narrow hardware routes before changing settings:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.agents\skills\winfix\scripts\inspect_windows.ps1" -Mode audio
-powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.agents\skills\winfix\scripts\inspect_windows.ps1" -Mode display
-powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.agents\skills\winfix\scripts\inspect_windows.ps1" -Mode printer
-powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.agents\skills\winfix\scripts\inspect_windows.ps1" -Mode power
-powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.agents\skills\winfix\scripts\inspect_windows.ps1" -Mode security
+powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode audio
+powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode display
+powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode printer
+powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode power
+powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode security
 ```
 
 If diagnostics point to physical failure, overheating, swollen battery, disk SMART failure, repeated BSOD with hardware codes, or no power/no display before Windows loads, report that software repair is insufficient and suggest hardware service or vendor diagnostics.
@@ -260,8 +264,8 @@ For WSL, never run `wsl --unregister` unless the user explicitly confirms the di
 Use:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.agents\skills\winfix\scripts\inspect_windows.ps1" -Mode wsl
-powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.agents\skills\winfix\scripts\inspect_windows.ps1" -Mode docker
+powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode wsl
+powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode docker
 ```
 
 ## Health Score

@@ -1,6 +1,11 @@
 # Changelog
 
+## 0.2.1 - 2026-09-19
 
+- Multi-host: SKILL.md and README are host-neutral; commands reference `<skill-root>` instead of a hardcoded Codex path, and install instructions now cover Codex, Claude Code, and any Agent Skills host.
+- Fixed garbled wsl.exe output on non-Unicode consoles (wsl writes UTF-16LE; it is now decoded explicitly instead of relying on the console codepage).
+- Script version constant surfaced in health output; consistency enforced by CI.
+- Added CI (syntax parse, dangerous-construct guard, JSON smoke tests, evals/schema validation), GitHub issue templates, CONTRIBUTING.md, and a v0.2.1 GitHub Release with a SHA-256 checksum for the archive.
 
 ## 0.2.0 - 2026-09-19
 

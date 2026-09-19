@@ -11,6 +11,7 @@ param(
   [string]$Format = 'text'
 )
 
+$WinfixVersion = '0.2.1'
 $ErrorActionPreference = 'SilentlyContinue'
 $MaxFilesPerFolder = 20000
 
@@ -138,6 +139,7 @@ function Get-HealthData {
   $drives = @(Get-DriveData)
   [pscustomobject]@{
     mode = 'health'
+    version = $WinfixVersion
     generated_at = (Get-Date).ToString('s')
     score = $score
     summary = [pscustomobject]@{
@@ -345,7 +347,7 @@ function Write-JsonPayload([object]$Payload) {
 function Show-Health {
   $score = Get-HealthScore
   '=== Health score ==='
-  [pscustomobject]@{ Score = $score.total; PendingReboot = $score.pending_reboot } | Format-List
+  [pscustomobject]@{ Version = $WinfixVersion; Score = $score.total; PendingReboot = $score.pending_reboot } | Format-List
   $score.components | ForEach-Object {
     [pscustomobject]@{ Component = $_.key; Score = $_.score; Weight = $_.weight; Measured = $_.measured }
   } | Format-Table -AutoSize
@@ -671,11 +673,30 @@ function Show-App([string]$Name) {
     Format-List
 }
 
+function Invoke-WslOutput([string[]]$WslArgs) {
+  # wsl.exe writes UTF-16LE regardless of the console codepage, which garbles
+  # when PowerShell decodes it with a non-Unicode encoding (e.g. cp936).
+  # Redirect raw bytes to files and decode as UTF-16 explicitly.
+  $stdoutPath = [System.IO.Path]::GetTempFileName()
+  $stderrPath = [System.IO.Path]::GetTempFileName()
+  try {
+    $null = Start-Process -FilePath 'wsl.exe' -ArgumentList $WslArgs -NoNewWindow -Wait -PassThru -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath -ErrorAction SilentlyContinue
+    $out = [System.IO.File]::ReadAllText($stdoutPath, [System.Text.Encoding]::Unicode)
+    $err = [System.IO.File]::ReadAllText($stderrPath, [System.Text.Encoding]::Unicode)
+    $text = ($out.Trim() + ' ' + $err.Trim()).Trim()
+    if ($text) { $text } else { 'wsl.exe returned no output.' }
+  } catch {
+    'wsl.exe is not available.'
+  } finally {
+    Remove-Item $stdoutPath, $stderrPath -Force -ErrorAction SilentlyContinue
+  }
+}
+
 function Show-WSL {
   '=== WSL status ==='
-  wsl --status 2>&1
+  Invoke-WslOutput @('--status')
   '=== WSL distros ==='
-  wsl -l -v 2>&1
+  Invoke-WslOutput @('-l', '-v')
   '=== WSL vhdx virtual disks ==='
   $vhdx = @()
   $packagesRoot = Join-Path $env:LOCALAPPDATA 'Packages'

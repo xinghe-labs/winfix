@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  script:
+    name: script (windows, powershell 5.1)
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Syntax parse
+        shell: powershell
+        run: |
+          $tokens = $null
+          $errors = $null
+          $null = [System.Management.Automation.Language.Parser]::ParseFile(
+            (Join-Path $PWD 'scripts/inspect_windows.ps1'), [ref]$tokens, [ref]$errors)
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Host $_.Message }
+            exit 1
+          }
+          Write-Host 'parse: OK'
+
+      - name: Dangerous-construct guard (SECURITY.md claims)
+        shell: powershell
+        run: |
+          $patterns = @('Invoke-Expression', 'DownloadString', 'DownloadFile',
+            'System.Net.WebClient', 'Invoke-WebRequest', 'Invoke-RestMethod', 'iex ')
+          $hits = Select-String -Path ./scripts/inspect_windows.ps1 -Pattern $patterns
+          if ($hits) { $hits | ForEach-Object { Write-Host $_.Line }; exit 1 }
+          $sp = @(Select-String -Path ./scripts/inspect_windows.ps1 -Pattern 'Start-Process')
+          if ($sp.Count -ne 1) { Write-Host "Start-Process must appear exactly once (the wsl UTF-16 wrapper), found $($sp.Count)"; exit 1 }
+          Write-Host 'dangerous constructs: none (Start-Process x1 = wsl wrapper)'
+
+      - name: JSON smoke (health / overview / baseline / compare)
+        shell: powershell
+        run: |
+          $s = './scripts/inspect_windows.ps1'
+          $health = (powershell -NoProfile -ExecutionPolicy Bypass -File $s -Mode health -Format json | Out-String) | ConvertFrom-Json
+          if ($null -eq $health.score.total) { throw 'health: score.total missing' }
+          if ($health.version -ne '0.2.1') { throw "health: version mismatch ($($health.version))" }
+          $overview = (powershell -NoProfile -ExecutionPolicy Bypass -File $s -Mode overview -Format json | Out-String) | ConvertFrom-Json
+          if (-not $overview.drives) { throw 'overview: drives missing' }
+          $null = (powershell -NoProfile -ExecutionPolicy Bypass -File $s -Mode baseline -Format json | Out-String) | ConvertFrom-Json
+          $null = (powershell -NoProfile -ExecutionPolicy Bypass -File $s -Mode baseline -Format json | Out-String) | ConvertFrom-Json
+          $compare = (powershell -NoProfile -ExecutionPolicy Bypass -File $s -Mode compare -Format json | Out-String) | ConvertFrom-Json
+          if ($null -eq $compare.baseline_at) { throw 'compare: baseline_at missing' }
+          $preview = (powershell -NoProfile -ExecutionPolicy Bypass -File $s -Mode cleanup-temp -Format json | Out-String) | ConvertFrom-Json
+          if ($preview.applied) { throw 'cleanup-temp preview must not delete' }
+          Write-Host 'json smoke: OK'
+
+      - name: Version consistency (script vs CHANGELOG)
+        shell: powershell
+        run: |
+          $v = Select-String -Path ./scripts/inspect_windows.ps1 -Pattern '\$WinfixVersion = ''([^'']+)''' |
+            ForEach-Object { $_.Matches[0].Groups[1].Value }
+          $top = (Get-Content ./CHANGELOG.md -TotalCount 4) -join ' '
+          if ($top -notmatch [regex]::Escape("## $v")) { throw "CHANGELOG top entry is not $v" }
+          Write-Host "version consistency: $v OK"
+
+      - name: Evals schema validation
+        shell: powershell
+        run: |
+          $evals = Get-Content ./evals/evals.json -Raw | ConvertFrom-Json
+          if ($evals.skill_name -ne 'winfix') { throw 'skill_name mismatch' }
+          foreach ($e in $evals.evals) {
+            if (-not $e.id -or -not $e.prompt -or -not $e.expected_output) { throw "eval $($e.id) missing fields" }
+          }
+          Write-Host "evals: $($evals.evals.Count) entries OK"
+
+      - name: Lint report (PSScriptAnalyzer, non-blocking)
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          Install-Module PSScriptAnalyzer -Force -Scope CurrentUser
+          Invoke-ScriptAnalyzer -Path ./scripts/inspect_windows.ps1 -Severity Warning |
+            Format-Table RuleName, Line, Message -AutoSize
