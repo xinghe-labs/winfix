@@ -162,6 +162,11 @@ C:\Windows\Temp    True                195 41.90 MB                34
 
 已在 Windows PowerShell 环境下测试（Windows 10/11，中文控制台）。部分诊断命令受 Windows 版本、PowerShell 版本和权限影响；某些数据源不存在时（如开机性能日志被禁用），对应组件自动跳过而不是报错中断。
 
+## 社区
+
+本项目在 [LINUX DO 社区](https://linux.do) 发布与交流，感谢佬友们的反馈与监督。
+Issue 与 PR 同样欢迎：https://github.com/xinghe-labs/winfix/issues
+
 ## 主要文件
 
 - `SKILL.md`
