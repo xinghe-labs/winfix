@@ -100,10 +100,15 @@ powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.agents\skills\winfix
 
 Report top candidates; do not delete from `Downloads`, `Desktop`, `Documents`, or chat file folders without explicit user approval.
 
-If the user asks to clean immediately, low-risk temp cleanup can use:
+If the user asks to clean immediately, low-risk temp cleanup uses a
+preview-then-apply contract enforced by the script itself:
 
 ```powershell
+# Preview only — the script cannot delete anything without -Apply
 powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.agents\skills\winfix\scripts\inspect_windows.ps1" -Mode cleanup-temp
+
+# Execute only after the user confirms (skips files modified in the last 24h)
+powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.agents\skills\winfix\scripts\inspect_windows.ps1" -Mode cleanup-temp -Apply
 ```
 
 Then rerun `-Mode disk`.
@@ -350,6 +355,7 @@ For command output, relay the important lines because the user may not see termi
 - If the fix only deletes low-risk temp files and the user asked "帮我清理", perform it and verify.
 - If the fix closes apps, removes caches that cause login/session impact, disables extensions, changes proxy, unregisters WSL, prunes Docker volumes, or deletes user-visible files, explain and ask for confirmation.
 - If the fix changes drivers, services, startup entries, firewall, Defender, registry, Windows Update components, boot settings, BitLocker, partitions, or power firmware settings, ask for explicit confirmation and prefer a restore point/backup.
+- The cleanup boundary is enforced mechanically, not by promise: `-Mode cleanup-temp` without `-Apply` only previews, its deletion path is restricted to the exact `%TEMP%` / `C:\Windows\Temp` roots, and it skips entries modified within 24 hours.
 - If admin rights are required, give exact commands and say they must be run in an elevated PowerShell.
 - If a scan times out, report partial findings and narrow the next scan instead of repeating the same broad scan.
 

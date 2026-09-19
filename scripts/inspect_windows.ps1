@@ -6,6 +6,7 @@ param(
   [string]$Target = '',
   [string]$ProcessName = '',
   [string]$BaselinePath = '',
+  [switch]$Apply,
   [ValidateSet('text', 'json')]
   [string]$Format = 'text'
 )
@@ -781,19 +782,69 @@ function Invoke-IssueRoute([string]$Text) {
   Show-DiskCandidates | Format-Table -AutoSize
 }
 
-function Clear-TempOnly {
+function Get-TempCleanupPlan {
+  # Deletion targets are restricted to two exact roots and to entries not
+  # modified within the last 24h (so a running installer is never disturbed).
   $targets = @($env:TEMP, 'C:\Windows\Temp') | Where-Object { $_ } | Sort-Object -Unique
+  $cutoff = (Get-Date).AddHours(-24)
+  $plan = @()
   foreach ($target in $targets) {
     $resolved = Resolve-Path -LiteralPath $target -ErrorAction SilentlyContinue
     if (-not $resolved) { continue }
     if (-not (Test-SafeTempRoot $resolved.Path)) {
-      Write-Host "Skipped unsafe temp path: $($resolved.Path)"
+      $plan += [pscustomobject]@{ Root = $resolved.Path; Allowed = $false; Entries = @(); Bytes = 0; RecentSkipped = 0 }
       continue
     }
-    Write-Host "Cleaning temp folder: $($resolved.Path)"
-    Get-ChildItem -LiteralPath $resolved.Path -Force -ErrorAction SilentlyContinue |
-      Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+    $items = @(Get-ChildItem -LiteralPath $resolved.Path -Force -ErrorAction SilentlyContinue)
+    $recent = @($items | Where-Object { $_.LastWriteTime -ge $cutoff })
+    $stale = @($items | Where-Object { $_.LastWriteTime -lt $cutoff })
+    $bytes = 0L
+    foreach ($item in $stale) {
+      if ($item.PSIsContainer) {
+        $sum = (Get-ChildItem -LiteralPath $item.FullName -Recurse -File -Force -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum
+        if ($null -ne $sum) { $bytes += [long]$sum }
+      } else {
+        $bytes += [long]$item.Length
+      }
+    }
+    $plan += [pscustomobject]@{ Root = $resolved.Path; Allowed = $true; Entries = $stale; Bytes = $bytes; RecentSkipped = $recent.Count }
   }
+  return $plan
+}
+
+function Show-TempPreview {
+  $plan = Get-TempCleanupPlan
+  '=== Temp cleanup preview ==='
+  'Nothing has been deleted. Add -Apply to execute the plan below.'
+  $plan | ForEach-Object {
+    [pscustomobject]@{
+      Root = $_.Root
+      Allowed = $_.Allowed
+      WouldDeleteEntries = @($_.Entries).Count
+      WouldFree = (Format-Bytes $_.Bytes)
+      SkippedRecent24h = $_.RecentSkipped
+    }
+  } | Format-Table -AutoSize
+}
+
+function Invoke-TempCleanup {
+  $plan = Get-TempCleanupPlan
+  $report = @()
+  foreach ($entry in $plan) {
+    if (-not $entry.Allowed) { Write-Host "Skipped unsafe temp path: $($entry.Root)"; continue }
+    foreach ($item in $entry.Entries) {
+      Remove-Item -LiteralPath $item.FullName -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    $remaining = @(Get-ChildItem -LiteralPath $entry.Root -Force -ErrorAction SilentlyContinue).Count
+    $report += [pscustomobject]@{
+      Root = $entry.Root
+      TargetedEntries = @($entry.Entries).Count
+      FreedBytes = $entry.Bytes
+      RecentSkipped = $entry.RecentSkipped
+      RemainingEntries = $remaining
+    }
+  }
+  return $report
 }
 
 switch ($Mode) {
@@ -927,6 +978,27 @@ switch ($Mode) {
   'docker' { Show-Docker }
   'large' { Show-LargeUserFolders }
   'issue' { Invoke-IssueRoute $Issue }
-  'cleanup-temp' { Clear-TempOnly; 'Done. Rerun -Mode disk to verify.' }
+  'cleanup-temp' {
+    if ($Apply) {
+      $report = Invoke-TempCleanup
+      if ($Format -eq 'json') { Write-JsonPayload ([pscustomobject]@{ mode = 'cleanup-temp'; applied = $true; roots = @($report) }); break }
+      $report | ForEach-Object {
+        [pscustomobject]@{ Root = $_.Root; DeletedTargeted = $_.TargetedEntries; Freed = (Format-Bytes $_.FreedBytes); SkippedRecent24h = $_.RecentSkipped; RemainingEntries = $_.RemainingEntries }
+      } | Format-Table -AutoSize
+      'Done. Rerun -Mode disk to verify.'
+    } else {
+      if ($Format -eq 'json') {
+        $plan = @(Get-TempCleanupPlan)
+        Write-JsonPayload ([pscustomobject]@{
+          mode = 'cleanup-temp'
+          applied = $false
+          note = 'Preview only. Re-run with -Apply to delete.'
+          roots = @($plan | ForEach-Object { [pscustomobject]@{ root = $_.Root; allowed = $_.Allowed; would_delete_entries = @($_.Entries).Count; would_free_bytes = $_.Bytes; skipped_recent_24h = $_.RecentSkipped } })
+        })
+        break
+      }
+      Show-TempPreview
+    }
+  }
 }
 
