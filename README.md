@@ -49,6 +49,7 @@ git clone https://github.com/xinghe-labs/winfix.git "$env:USERPROFILE\.claude\sk
 ```text
 给电脑打个健康分
 帮我分析 C 盘空间
+D 盘哪的文件大
 感觉电脑最近变卡了
 WSL 是不是把 C 盘吃满了
 Chrome 内存占用很高
@@ -134,6 +135,13 @@ Root            Allowed WouldDeleteEntries WouldFree SkippedRecent24h
 ----            ------- ------------------ --------- ----------------
 C:\Windows\Temp    True                195 41.90 MB                34
 ```
+
+## 更新与版本
+
+- 通过 skills CLI 安装的：`npx skills update winfix`
+- git 克隆安装的：`git pull`（若提示 unrelated histories，说明本地无本地改动，可直接 `git fetch` 后 `git reset --hard origin/main`）
+- 手动复制的：重新复制覆盖
+- 当前运行版本看 `health` 输出的 `Version` 字段，与 [CHANGELOG.md](CHANGELOG.md) 对照
 
 ## 安全边界
 

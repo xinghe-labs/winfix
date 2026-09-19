@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.2 - 2026-09-19
+
+- `large` mode accepts `-Path <dir>` to deep-scan any directory or drive root (previously hardcoded to the user profile), and now includes a system root breakdown (`C:\Windows`, `Program Files`, `ProgramData`, ...) plus pagefile/hiberfil/swapfile sizes with honest "sampled" caveats.
+- Temp-cleanup candidate list no longer shows zero-byte or missing entries.
+- Folder scans report progress on stderr and total elapsed time, so long scans never look hung.
+
 ## 0.2.1 - 2026-09-19
 
 - Multi-host: SKILL.md and README are host-neutral; commands reference `<skill-root>` instead of a hardcoded Codex path, and install instructions now cover Codex, Claude Code, and any Agent Skills host.

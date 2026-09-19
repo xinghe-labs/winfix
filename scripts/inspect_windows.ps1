@@ -6,12 +6,13 @@ param(
   [string]$Target = '',
   [string]$ProcessName = '',
   [string]$BaselinePath = '',
+  [string]$Path = '',
   [switch]$Apply,
   [ValidateSet('text', 'json')]
   [string]$Format = 'text'
 )
 
-$WinfixVersion = '0.2.1'
+$WinfixVersion = '0.2.2'
 $ErrorActionPreference = 'SilentlyContinue'
 $MaxFilesPerFolder = 20000
 
@@ -65,7 +66,10 @@ function Get-ChildFolderSizes([string]$Path, [int]$Limit = 15) {
     return [pscustomobject]@{ Path = $Path; Exists = $false; Bytes = 0; Size = 'missing' }
   }
   Get-ChildItem -LiteralPath $Path -Force -Directory -ErrorAction SilentlyContinue |
-    ForEach-Object { Get-FolderSize $_.FullName } |
+    ForEach-Object {
+      [Console]::Error.WriteLine("  scanning $($_.Name)")
+      Get-FolderSize $_.FullName
+    } |
     Sort-Object Bytes -Descending |
     Select-Object -First $Limit
 }
@@ -404,7 +408,7 @@ function Show-DiskCandidates {
     (Join-Local $env:LOCALAPPDATA 'Temp')
   ) | Where-Object { $_ } | Sort-Object -Unique
 
-  $paths | ForEach-Object { Get-FolderSize $_ } | Sort-Object Bytes -Descending | Select-Object -First $Top
+  $paths | ForEach-Object { Get-FolderSize $_ } | Where-Object { $_.Exists -and $_.Bytes -gt 0 } | Sort-Object Bytes -Descending | Select-Object -First $Top
 }
 
 function Show-Memory {
@@ -743,11 +747,41 @@ function Show-Docker {
   ) | ForEach-Object { Get-FolderSize $_ } | Sort-Object Bytes -Descending | Format-Table -AutoSize
 }
 
+function Show-SystemBreakdown {
+  # The largest space consumers on a full drive are usually system-level
+  # (Windows, Program Files, pagefile/hiberfil) and invisible to the
+  # user-profile scans; this makes them visible with honest sampled sizes.
+  $sysDrive = if ($env:SystemDrive) { $env:SystemDrive } else { 'C:' }
+  $root = $sysDrive + [System.IO.Path]::DirectorySeparatorChar
+  "=== System root breakdown ($root, sampled) ==="
+  Get-ChildFolderSizes $root $Top | Format-Table -AutoSize
+  '=== Memory-managed files ==='
+  Get-ChildItem $root -Force -File -ErrorAction SilentlyContinue |
+    Where-Object { @('pagefile.sys', 'hiberfil.sys', 'swapfile.sys') -contains $_.Name } |
+    ForEach-Object { [pscustomobject]@{ File = $_.Name; Size = (Format-Bytes $_.Length) } } |
+    Format-Table -AutoSize
+  'Note: pagefile/hiberfil/swapfile are managed by Windows (virtual memory,'
+  'fast startup, hibernation). Resize via system settings; never delete.'
+  'Note: "sampled" stops after 20000 files, so very large folders (Windows,'
+  'Users) are understated; use the numbers to discover structure, not as exact totals.'
+}
+
 function Show-LargeUserFolders {
-  '=== Top user profile folders ==='
-  Get-ChildFolderSizes $env:USERPROFILE $Top | Format-Table -AutoSize
-  '=== Top LocalAppData folders ==='
-  Get-ChildFolderSizes $env:LOCALAPPDATA $Top | Format-Table -AutoSize
+  $sw = [System.Diagnostics.Stopwatch]::StartNew()
+  if ($Path) {
+    $resolved = Resolve-Path -LiteralPath $Path -ErrorAction SilentlyContinue
+    if (-not $resolved) { "Path not found: $Path"; return }
+    "=== Top folders under $($resolved.Path) ==="
+    Get-ChildFolderSizes $resolved.Path $Top | Format-Table -AutoSize
+  } else {
+    '=== Top user profile folders ==='
+    Get-ChildFolderSizes $env:USERPROFILE $Top | Format-Table -AutoSize
+    '=== Top LocalAppData folders ==='
+    Get-ChildFolderSizes $env:LOCALAPPDATA $Top | Format-Table -AutoSize
+    Show-SystemBreakdown
+  }
+  $sw.Stop()
+  [Console]::Error.WriteLine(("scan finished in {0:N1}s" -f $sw.Elapsed.TotalSeconds))
 }
 
 function Contains-CodePoint([string]$Text, [int[]]$Codes) {

@@ -63,6 +63,7 @@ powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.p
 | 给电脑打个分、健康检查 | `-Mode health` | health score, weakest component with evidence |
 | 电脑最近变卡了、和之前不一样 | `-Mode compare` (fall back to `-Mode baseline` if none exists) | drive deltas, startup added/removed, service changes |
 | C 盘空间不够、哪些可以清理、电脑变满 | `-Mode disk`, then `-Mode large` if needed | top candidates, risk level, expected reclaimed space |
+| D 盘、某个目录哪的文件大 | `-Mode large -Path <目录>` | top folders under that path, honest sampled sizes |
 | Chrome/Edge 内存高、浏览器卡 | `-Mode chrome`, optionally `-Mode memory` | process count, memory total/top process, cache/profile risk |
 | VS Code 点不了、WebView 报错、插件问题 | `-Mode vscode` | Code processes, cache folders, extension size, whether Code must be closed |
 | 微信/企业微信文件太大 | `-Mode wechat` | distinguish received files from cache; ask before deleting |
