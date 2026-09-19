@@ -1,17 +1,74 @@
 {
   "mode": "health",
-  "generated_at": "2026-06-14T12:25:34",
+  "generated_at": "2026-09-19T12:15:38",
+  "score": {
+    "total": 34,
+    "pending_reboot": true,
+    "components": [
+      {
+        "key": "disk",
+        "weight": 30,
+        "score": 33,
+        "measured": "min drive free 11.6%"
+      },
+      {
+        "key": "memory",
+        "weight": 25,
+        "score": 63,
+        "measured": "memory used 72.9%"
+      },
+      {
+        "key": "stability",
+        "weight": 15,
+        "score": 0,
+        "measured": "22 critical/error events in 3d; 0 problem devices"
+      },
+      {
+        "key": "startup",
+        "weight": 10,
+        "score": 65,
+        "measured": "15 startup items"
+      },
+      {
+        "key": "updates",
+        "weight": 5,
+        "score": 100,
+        "measured": "last hotfix 5 days ago"
+      }
+    ],
+    "note": "Heuristic score from live measurements; unavailable components are excluded and the remaining weights renormalized. Not a benchmark."
+  },
   "summary": {
-    "computer": "EXAMPLE-PC",
-    "uptime_days": 3.8,
-    "memory_used_percent": 77.6,
-    "critical_or_error_events_last_3_days": 7,
+    "computer": "Q",
+    "uptime_days": 3.99,
+    "memory_used_percent": 73.1,
+    "critical_or_error_events_last_3_days": 20,
     "problem_devices": 0,
     "defender_realtime": false,
     "drive_status": [
       {
         "device": "C:",
-        "free_percent": 14.3,
+        "free_percent": 11.6,
+        "status": "watch"
+      },
+      {
+        "device": "D:",
+        "free_percent": 21.5,
+        "status": "ok"
+      },
+      {
+        "device": "E:",
+        "free_percent": 25.8,
+        "status": "ok"
+      },
+      {
+        "device": "F:",
+        "free_percent": 42.1,
+        "status": "ok"
+      },
+      {
+        "device": "G:",
+        "free_percent": 18.1,
         "status": "watch"
       }
     ]
@@ -19,11 +76,11 @@
   "findings": [
     "One or more drives are low or should be watched.",
     "Recent critical/error system events exist.",
-    "Defender real-time protection is off."
+    "Defender real-time protection is off.",
+    "A reboot is pending; some fixes stay incomplete until then."
   ],
   "recommended_actions": [
     "Use the route matching the strongest finding: disk, memory, events, devices, or security.",
     "Do not run repair commands before reviewing evidence and impact."
   ]
 }
-

@@ -56,6 +56,8 @@ powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.agents\skills\winfix
 
 | User says | Inspect with | First answer should include |
 |---|---|---|
+| 给电脑打个分、健康检查 | `-Mode health` | health score, weakest component with evidence |
+| 电脑最近变卡了、和之前不一样 | `-Mode compare` (fall back to `-Mode baseline` if none exists) | drive deltas, startup added/removed, service changes |
 | C 盘空间不够、哪些可以清理、电脑变满 | `-Mode disk`, then `-Mode large` if needed | top candidates, risk level, expected reclaimed space |
 | Chrome/Edge 内存高、浏览器卡 | `-Mode chrome`, optionally `-Mode memory` | process count, memory total/top process, cache/profile risk |
 | VS Code 点不了、WebView 报错、插件问题 | `-Mode vscode` | Code processes, cache folders, extension size, whether Code must be closed |
@@ -64,7 +66,7 @@ powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.agents\skills\winfix
 | 代理、网络、API 连不上 | `-Mode network` | env proxies, WinHTTP proxy, test endpoint result |
 | 某网站/API/下载地址打不开 | `-Mode net-test -Target <url-or-host>` | DNS, proxy state, HTTP headers/errors |
 | 某个软件卡、闪退、打不开 | `-Mode app -ProcessName <name>` plus `-Mode events` if needed | matching processes and recent app errors |
-| WSL/Ubuntu/Linux 占空间或坏了 | `-Mode wsl` | distro list, status, deletion/export warning |
+| WSL/Ubuntu/Linux 占空间或坏了 | `-Mode wsl` | distro list, vhdx virtual disk sizes, deletion/export warning |
 | Docker/镜像/容器占空间 | `-Mode docker` | Docker availability, `docker system df`, volume warning |
 | 蓝屏、自动重启、闪退、卡死 | `-Mode events`, then `-Mode drivers` if device-related | recent critical/error events, likely failing provider |
 | 开机慢、启动项太多 | `-Mode startup`, optionally `-Mode services` | startup entries, non-running automatic services |
@@ -256,6 +258,42 @@ Use:
 powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.agents\skills\winfix\scripts\inspect_windows.ps1" -Mode wsl
 powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.agents\skills\winfix\scripts\inspect_windows.ps1" -Mode docker
 ```
+
+## Health Score
+
+`-Mode health` computes a 0-100 score from live measurements, with each
+component reported separately:
+
+| Component | Weight | Source |
+|---|---|---|
+| disk | 30 | lowest drive free percent (≥25% → 100, ≤5% → 0) |
+| memory | 25 | used percent (≤60% → 100, ≥95% → 0) |
+| stability | 15 | critical/error events in 3d and problem devices |
+| boot | 15 | average real boot duration of the last 3 boots, when the Diagnostics-Performance log exists |
+| startup | 10 | enabled startup item count (≤8 → 100, ≥28 → 0) |
+| updates | 5 | days since last hotfix (≤30 → 100, ≥120 → 0) |
+
+A pending reboot subtracts 10. When a data source is unavailable, its
+component is excluded and the remaining weights renormalized — the score
+never invents numbers. Always report the weakest component together with its
+measured evidence, and present the score as a heuristic, not a benchmark.
+
+## Baseline And Compare
+
+`-Mode baseline` snapshots drives, memory, startup items, auto-start-but-
+stopped services, and the pending-reboot flag into `~\.winfix\baselines\`
+(newest 20 kept; this is the only location the script ever writes).
+`-Mode compare` diffs the current state against the newest baseline (or
+`-BaselinePath <file>`):
+
+- per-drive free-space delta in bytes
+- startup items added/removed by name and location
+- auto-start-but-stopped service count change
+- pending-reboot flag
+
+Use this for "电脑最近变卡了" prompts. If no baseline exists, say so, save
+one now, and tell the user to compare again after a few days. Never fabricate
+a comparison.
 
 ## Cleanup Risk Levels
 

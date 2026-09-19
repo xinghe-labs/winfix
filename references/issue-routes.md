@@ -105,6 +105,19 @@ Printer:
 3. Do not disable security features unless the user explicitly asks and understands the risk.
 4. For suspected malware, recommend offline scan or Defender full scan before deleting random files.
 
+## Feels slower than before
+
+1. Run `compare`. If no baseline exists, say so honestly and run `baseline` instead.
+2. Read drive deltas, startup additions, and service count changes as the story.
+3. If startup items were added, name them and ask before disabling anything.
+4. If nothing changed, say so — the feeling may be load-related, not state-related.
+
+## Baseline habit
+
+1. After a clean state or a big cleanup, run `baseline`.
+2. Compare whenever the user reports a change.
+3. Baselines live only in `~\.winfixaselines\`; never treat them as system backups.
+
 ## Cleanup response contract
 
 After cleanup, always include:

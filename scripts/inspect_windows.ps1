@@ -1,10 +1,11 @@
 param(
-  [ValidateSet('overview', 'health', 'disk', 'memory', 'dev', 'network', 'net-test', 'app', 'chrome', 'vscode', 'wechat', 'android', 'wsl', 'docker', 'large', 'system', 'events', 'startup', 'services', 'drivers', 'updates', 'devices', 'power', 'audio', 'display', 'printer', 'security', 'repair-check', 'issue', 'cleanup-temp')]
+  [ValidateSet('overview', 'health', 'baseline', 'compare', 'disk', 'memory', 'dev', 'network', 'net-test', 'app', 'chrome', 'vscode', 'wechat', 'android', 'wsl', 'docker', 'large', 'system', 'events', 'startup', 'services', 'drivers', 'updates', 'devices', 'power', 'audio', 'display', 'printer', 'security', 'repair-check', 'issue', 'cleanup-temp')]
   [string]$Mode = 'overview',
   [int]$Top = 15,
   [string]$Issue = '',
   [string]$Target = '',
   [string]$ProcessName = '',
+  [string]$BaselinePath = '',
   [ValidateSet('text', 'json')]
   [string]$Format = 'text'
 )
@@ -127,6 +128,7 @@ function Get-DiskCandidateData {
 }
 
 function Get-HealthData {
+  $score = Get-HealthScore
   $os = Get-CimInstance Win32_OperatingSystem
   $events = @(Get-WinEvent -FilterHashtable @{ LogName = 'System'; Level = 1,2; StartTime = (Get-Date).AddDays(-3) } -MaxEvents 20)
   $problemDevices = @(Get-CimInstance Win32_PnPEntity | Where-Object { $_.ConfigManagerErrorCode -ne 0 })
@@ -136,6 +138,7 @@ function Get-HealthData {
   [pscustomobject]@{
     mode = 'health'
     generated_at = (Get-Date).ToString('s')
+    score = $score
     summary = [pscustomobject]@{
       computer = $env:COMPUTERNAME
       uptime_days = [math]::Round(((Get-Date) - $os.LastBootUpTime).TotalDays, 2)
@@ -151,6 +154,7 @@ function Get-HealthData {
       if ($events.Count -gt 0) { 'Recent critical/error system events exist.' }
       if ($problemDevices.Count -gt 0) { 'Windows reports problem devices.' }
       if ($defender.RealTimeProtectionEnabled -eq $false) { 'Defender real-time protection is off.' }
+      if ($score.pending_reboot) { 'A reboot is pending; some fixes stay incomplete until then.' }
     )
     recommended_actions = @(
       'Use the route matching the strongest finding: disk, memory, events, devices, or security.'
@@ -159,11 +163,192 @@ function Get-HealthData {
   }
 }
 
+function Get-PendingReboot {
+  $keys = @(
+    'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired',
+    'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending'
+  )
+  foreach ($key in $keys) { if (Test-Path $key) { return $true } }
+  $renames = Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager' -Name PendingFileRenameOperations -ErrorAction SilentlyContinue
+  if ($renames -and @($renames.PendingFileRenameOperations).Count -gt 0) { return $true }
+  return $false
+}
+
+function Get-BootDurations {
+  # Boot duration comes from the Diagnostics-Performance log, which some
+  # systems do not have; callers must treat $null as "component unavailable".
+  # Event 100 carries duration fields as raw numeric properties; the largest
+  # plausible millisecond value is the total boot time (main path + post boot).
+  $events = @(Get-WinEvent -FilterHashtable @{ LogName = 'Microsoft-Windows-Diagnostics-Performance/Operational'; Id = 100 } -MaxEvents 3 -ErrorAction SilentlyContinue)
+  if (-not $events) { return $null }
+  $out = @()
+  foreach ($event in $events) {
+    $candidates = @($event.Properties |
+      Where-Object { $_.Value -is [int] -or $_.Value -is [long] } |
+      ForEach-Object { [long]$_.Value } |
+      Where-Object { $_ -ge 1000 -and $_ -le 3600000 })
+    if ($candidates.Count -gt 0) {
+      $out += [pscustomobject]@{ boot_at = $event.TimeCreated.ToString('s'); total_ms = ($candidates | Measure-Object -Maximum).Maximum }
+    }
+  }
+  if ($out.Count -eq 0) { return $null }
+  return $out
+}
+
+function Get-StartupInventory {
+  Get-CimInstance Win32_StartupCommand -ErrorAction SilentlyContinue |
+    Select-Object name, command, location, user
+}
+
+function Get-HealthScore {
+  $drives = @(Get-DriveData)
+  $memory = Get-MemoryData
+  $events = @(Get-WinEvent -FilterHashtable @{ LogName = 'System'; Level = 1,2; StartTime = (Get-Date).AddDays(-3) } -MaxEvents 50)
+  $problemDevices = @(Get-CimInstance Win32_PnPEntity | Where-Object { $_.ConfigManagerErrorCode -ne 0 })
+  $boot = Get-BootDurations
+  $startupCount = @(Get-StartupInventory).Count
+  $lastHotfix = Get-HotFix | Sort-Object InstalledOn -Descending | Select-Object -First 1
+  $updateAgeDays = if ($lastHotfix -and $lastHotfix.InstalledOn) { [int][math]::Round(((Get-Date) - $lastHotfix.InstalledOn).TotalDays) } else { $null }
+  $pending = Get-PendingReboot
+
+  $components = @()
+  if ($drives.Count -gt 0) {
+    $minFree = ($drives | Measure-Object -Property free_percent -Minimum).Minimum
+    $s = if ($minFree -ge 25) { 100 } elseif ($minFree -le 5) { 0 } else { [math]::Round((($minFree - 5) / 20) * 100) }
+    $components += [pscustomobject]@{ key = 'disk'; weight = 30; score = [int]$s; measured = "min drive free ${minFree}%" }
+  }
+  if ($null -ne $memory.used_percent) {
+    $u = [double]$memory.used_percent
+    $s = if ($u -le 60) { 100 } elseif ($u -ge 95) { 0 } else { [math]::Round(((95 - $u) / 35) * 100) }
+    $components += [pscustomobject]@{ key = 'memory'; weight = 25; score = [int]$s; measured = "memory used ${u}%" }
+  }
+  $components += [pscustomobject]@{
+    key = 'stability'; weight = 15; score = [int][math]::Max(0, 100 - $events.Count * 8 - $problemDevices.Count * 10)
+    measured = "$($events.Count) critical/error events in 3d; $($problemDevices.Count) problem devices"
+  }
+  if ($boot) {
+    $avgS = [math]::Round((($boot | Measure-Object -Property total_ms -Average).Average) / 1000)
+    $s = if ($avgS -le 30) { 100 } elseif ($avgS -ge 180) { 0 } else { [math]::Round(((180 - $avgS) / 150) * 100) }
+    $components += [pscustomobject]@{ key = 'boot'; weight = 15; score = [int]$s; measured = "avg boot ${avgS}s over last $($boot.Count) boots" }
+  }
+  $s = if ($startupCount -le 8) { 100 } elseif ($startupCount -ge 28) { 0 } else { [math]::Round(((28 - $startupCount) / 20) * 100) }
+  $components += [pscustomobject]@{ key = 'startup'; weight = 10; score = [int]$s; measured = "$startupCount startup items" }
+  if ($null -ne $updateAgeDays) {
+    $s = if ($updateAgeDays -le 30) { 100 } elseif ($updateAgeDays -ge 120) { 0 } else { [math]::Round(((120 - $updateAgeDays) / 90) * 100) }
+    $components += [pscustomobject]@{ key = 'updates'; weight = 5; score = [int]$s; measured = "last hotfix ${updateAgeDays} days ago" }
+  }
+
+  $totalWeight = ($components | Measure-Object -Property weight -Sum).Sum
+  $total = if ($totalWeight -gt 0) { [math]::Round((($components | ForEach-Object { $_.weight * $_.score } | Measure-Object -Sum).Sum) / $totalWeight) } else { $null }
+  if ($pending -and ($null -ne $total)) { $total = [math]::Max(0, $total - 10) }
+  [pscustomobject]@{
+    total = $total
+    pending_reboot = $pending
+    components = @($components)
+    note = 'Heuristic score from live measurements; unavailable components are excluded and the remaining weights renormalized. Not a benchmark.'
+  }
+}
+
+function Get-WinfixStateDir {
+  $dir = Join-Path $env:USERPROFILE '.winfix\baselines'
+  if (-not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+  return $dir
+}
+
+function Get-BaselineData {
+  [pscustomobject]@{
+    kind = 'winfix-baseline'
+    version = 1
+    created_at = (Get-Date).ToString('s')
+    computer = $env:COMPUTERNAME
+    drives = @(Get-DriveData)
+    memory = Get-MemoryData
+    startup = @(Get-StartupInventory)
+    auto_stopped_services = @(Get-CimInstance Win32_Service -ErrorAction SilentlyContinue |
+      Where-Object { $_.StartMode -eq 'Auto' -and $_.State -ne 'Running' } |
+      Select-Object -ExpandProperty Name | Sort-Object)
+    pending_reboot = Get-PendingReboot
+    last_boot = ((Get-CimInstance Win32_OperatingSystem).LastBootUpTime).ToString('s')
+  }
+}
+
+function Save-Baseline {
+  $data = Get-BaselineData
+  $dir = Get-WinfixStateDir
+  $path = Join-Path $dir ("baseline-" + (Get-Date).ToString('yyyyMMdd-HHmmss') + ".json")
+  $data | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $path -Encoding UTF8
+  $all = @(Get-ChildItem $dir -Filter 'baseline-*.json' -ErrorAction SilentlyContinue | Sort-Object Name -Descending)
+  if ($all.Count -gt 20) { $all | Select-Object -Skip 20 | Remove-Item -Force -ErrorAction SilentlyContinue }
+  [pscustomobject]@{
+    saved_path = $path
+    created_at = $data.created_at
+    summary = [pscustomobject]@{
+      drives = @($data.drives | Select-Object device, free_percent, status)
+      startup_items = @($data.startup).Count
+      auto_stopped_services = @($data.auto_stopped_services).Count
+      pending_reboot = $data.pending_reboot
+    }
+  }
+}
+
+function Compare-WithBaseline([string]$Path) {
+  $dir = Get-WinfixStateDir
+  if ($Path) {
+    if (-not (Test-Path -LiteralPath $Path)) { return $null }
+    $baselineFile = $Path
+  } else {
+    $files = @(Get-ChildItem $dir -Filter 'baseline-*.json' -ErrorAction SilentlyContinue | Sort-Object Name -Descending)
+    if ($files.Count -eq 0) { return $null }
+    $baselineFile = $files[0].FullName
+  }
+  $base = Get-Content -LiteralPath $baselineFile -Raw | ConvertFrom-Json
+  $now = Get-BaselineData
+
+  $driveDeltas = @(
+    foreach ($d in $now.drives) {
+      $b = $base.drives | Where-Object { $_.device -eq $d.device }
+      if ($b) {
+        [pscustomobject]@{
+          device = $d.device
+          free_before_bytes = [int64]$b.free_bytes
+          free_now_bytes = [int64]$d.free_bytes
+          delta_bytes = ([int64]$d.free_bytes - [int64]$b.free_bytes)
+        }
+      }
+    }
+  )
+  $baseIds = @($base.startup | ForEach-Object { "$($_.location)|$($_.name)" })
+  $nowIds = @($now.startup | ForEach-Object { "$($_.location)|$($_.name)" })
+  $added = @($nowIds | Where-Object { $baseIds -notcontains $_ })
+  $removed = @($baseIds | Where-Object { $nowIds -notcontains $_ })
+
+  [pscustomobject]@{
+    baseline_path = $baselineFile
+    baseline_at = $base.created_at
+    now_at = $now.created_at
+    drive_deltas = $driveDeltas
+    startup_added = $added
+    startup_removed = $removed
+    auto_stopped_services_before = @($base.auto_stopped_services).Count
+    auto_stopped_services_now = @($now.auto_stopped_services).Count
+    pending_reboot = $now.pending_reboot
+  }
+}
+
 function Write-JsonPayload([object]$Payload) {
   $Payload | ConvertTo-Json -Depth 8
 }
 
 function Show-Health {
+  $score = Get-HealthScore
+  '=== Health score ==='
+  [pscustomobject]@{ Score = $score.total; PendingReboot = $score.pending_reboot } | Format-List
+  $score.components | ForEach-Object {
+    [pscustomobject]@{ Component = $_.key; Score = $_.score; Weight = $_.weight; Measured = $_.measured }
+  } | Format-Table -AutoSize
+  $worst = $score.components | Sort-Object score | Select-Object -First 1
+  if ($worst) { "Weakest component: $($worst.key) ($($worst.measured))" }
+
   '=== Health summary ==='
   $drives = Get-CimInstance Win32_LogicalDisk -Filter 'DriveType=3'
   $os = Get-CimInstance Win32_OperatingSystem
@@ -488,11 +673,36 @@ function Show-WSL {
   wsl --status 2>&1
   '=== WSL distros ==='
   wsl -l -v 2>&1
+  '=== WSL vhdx virtual disks ==='
+  $vhdx = @()
+  $packagesRoot = Join-Path $env:LOCALAPPDATA 'Packages'
+  if (Test-Path $packagesRoot) {
+    Get-ChildItem $packagesRoot -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+      $candidate = Join-Path $_.FullName 'LocalState\ext4.vhdx'
+      if (Test-Path $candidate) { $vhdx += (Get-Item $candidate) }
+    }
+  }
+  @(
+    (Join-Path $env:LOCALAPPDATA 'Docker\wsl\data\ext4.vhdx'),
+    (Join-Path $env:LOCALAPPDATA 'Docker\wsl\disk\docker_data.vhdx'),
+    (Join-Path $env:LOCALAPPDATA 'DockerDesktopWSL\data\ext4.vhdx'),
+    (Join-Path $env:LOCALAPPDATA 'DockerDesktopWSL\disk\docker_data.vhdx')
+  ) | Where-Object { $_ -and (Test-Path $_) } | ForEach-Object { $vhdx += (Get-Item $_) }
+  if ($vhdx.Count -gt 0) {
+    $vhdx | Sort-Object Length -Descending | ForEach-Object {
+      [pscustomobject]@{ File = $_.FullName.Replace($env:USERPROFILE, '~'); Size = (Format-Bytes $_.Length); Modified = $_.LastWriteTime.ToString('yyyy-MM-dd') }
+    } | Format-Table -AutoSize
+    'Note: vhdx files never shrink on their own. To reclaim space: wsl --shutdown, then'
+    'Optimize-VHD -Path <file> -Mode Full  (admin PowerShell, Hyper-V module)'
+    'or diskpart: select vdisk file="<file>" + attach vdisk readonly + compact vdisk. Back up first.'
+  } else {
+    'No WSL/Docker vhdx files found.'
+  }
   '=== WSL/Docker local candidates ==='
   @(
     (Join-Local $env:LOCALAPPDATA 'Packages'),
     (Join-Local $env:LOCALAPPDATA 'Docker'),
-    (Join-Local $env:APPDATA 'Docker'),
+    (Join-Path $env:APPDATA 'Docker'),
     (Join-Local $env:USERPROFILE '.wslconfig')
   ) | ForEach-Object { Get-FolderSize $_ } | Sort-Object Bytes -Descending | Format-Table -AutoSize
 }
@@ -590,6 +800,42 @@ switch ($Mode) {
   'health' {
     if ($Format -eq 'json') { Write-JsonPayload (Get-HealthData); break }
     Show-Health
+  }
+  'baseline' {
+    $result = Save-Baseline
+    if ($Format -eq 'json') { Write-JsonPayload $result; break }
+    "Baseline saved: $($result.saved_path)"
+    $result.summary.drives | Format-Table -AutoSize
+    [pscustomobject]@{
+      StartupItems = $result.summary.startup_items
+      AutoStoppedServices = $result.summary.auto_stopped_services
+      PendingReboot = $result.summary.pending_reboot
+    } | Format-List
+  }
+  'compare' {
+    $diff = Compare-WithBaseline $BaselinePath
+    if ($null -eq $diff) {
+      if ($BaselinePath) { "Baseline file not found: $BaselinePath" }
+      else { 'No baseline found yet. Run -Mode baseline to snapshot the current state first.' }
+      break
+    }
+    if ($Format -eq 'json') { Write-JsonPayload $diff; break }
+    "Baseline: $($diff.baseline_at)   Now: $($diff.now_at)"
+    '=== Drive free-space change ==='
+    $diff.drive_deltas | ForEach-Object {
+      [pscustomobject]@{
+        Drive = $_.device
+        Before = (Format-Bytes $_.free_before_bytes)
+        Now = (Format-Bytes $_.free_now_bytes)
+        Change = (Format-Bytes $_.delta_bytes)
+      }
+    } | Format-Table -AutoSize
+    '=== Startup items ==='
+    "added: $(@($diff.startup_added).Count)   removed: $(@($diff.startup_removed).Count)"
+    foreach ($item in $diff.startup_added) { "  + $item" }
+    foreach ($item in $diff.startup_removed) { "  - $item" }
+    "Auto-start-but-stopped services: $($diff.auto_stopped_services_before) -> $($diff.auto_stopped_services_now)"
+    "Pending reboot: $($diff.pending_reboot)"
   }
   'overview' {
     if ($Format -eq 'json') {
