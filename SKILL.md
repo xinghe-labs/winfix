@@ -315,6 +315,7 @@ a comparison.
 | Admin | Windows component store, system restore, feature removal, DISM, WSL feature disable | Explain admin requirement and risk |
 
 Read `references/known-folders.md` when explaining what a folder is or whether it can be cleaned; unmatched paths follow the unknown-folder triage there — never guess a purpose.
+When an unknown folder's purpose has been identified and confirmed by the user, proactively suggest contributing the entry back (GitHub issue or PR with the table row ready: path, purpose, risk, clean method, regeneration note) so the knowledge base grows from real machines.
 Read `references/safety.md` when planning non-trivial cleanup or when user asks "哪些可以清理".
 Read `references/issue-routes.md` when the problem is vague or multi-symptom.
 Read `references/release-checklist.md` before packaging or publishing this skill.

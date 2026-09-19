@@ -1,0 +1,46 @@
+name: 目录知识库贡献
+description: 查明了一个 unknown 目录的用途，把条目贡献给 known-folders.md
+labels: [knowledge-base]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢贡献！WinFix 靠真实机器上的案例养知识库。
+        请确保你已按 SKILL.md 的「未知目录排查流程」核实过（看内容特征 + 查使用状态），
+        并**不要**粘贴任何含个人信息的文件名、密钥或会话内容。
+  - type: input
+    id: path
+    attributes:
+      label: 目录路径（模式）
+      description: 把用户名等个人信息替换为 <user>，例如 C:\Users\<user>\AppData\Local\xxx
+      placeholder: C:\Users\<user>\AppData\Local\example-folder
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 内容特征与使用状态
+      description: 目录里有哪些文件/扩展名？LastWriteTime？相关工具还在运行/已卸载？对应更新（KB）是否已安装？
+      placeholder: |
+        内含 xxx.cab、yyy.psf；LastWriteTime 2026-06；
+        Get-HotFix 已包含对应 KB；工具仍在使用中
+    validations:
+      required: true
+  - type: textarea
+    id: purpose
+    attributes:
+      label: 判定：这是什么
+      description: 给出结论与依据
+    validations:
+      required: true
+  - type: textarea
+    id: entry
+    attributes:
+      label: 建议的 known-folders.md 条目
+      description: 按现有表格格式给一行：路径模式 | 是什么 | 风险 | 清理方式或说明
+      placeholder: |
+        | 路径模式 | 是什么 | 风险 | 清理方式与说明 |
+        |---|---|---|---|
+        | ... | ... | 低/中/高/勿动 | ... |
+    validations:
+      required: true
