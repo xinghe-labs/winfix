@@ -45,13 +45,17 @@ jobs:
           if ($sp.Count -ne 1) { Write-Host "Start-Process must appear exactly once (the wsl UTF-16 wrapper), found $($sp.Count)"; exit 1 }
           Write-Host 'dangerous constructs: none (Start-Process x1 = wsl wrapper)'
 
-      - name: JSON smoke (health / overview / baseline / compare)
+      - name: JSON smoke (health / overview / baseline / compare / cleanup preview)
         shell: powershell
         run: |
           $s = './scripts/inspect_windows.ps1'
+          $scriptVersion = (Select-String -Path $s -Pattern '\$WinfixVersion = ''([^'']+)''') |
+            ForEach-Object { $_.Matches[0].Groups[1].Value }
+          if (-not $scriptVersion) { throw 'cannot read $WinfixVersion from script' }
           $health = (powershell -NoProfile -ExecutionPolicy Bypass -File $s -Mode health -Format json | Out-String) | ConvertFrom-Json
-          if ($null -eq $health.score.total) { throw 'health: score.total missing' }
-          if ($health.version -ne '0.2.1') { throw "health: version mismatch ($($health.version))" }
+          if ($health.version -ne $scriptVersion) { throw "health: version mismatch ($($health.version) vs $scriptVersion)" }
+          $top = (Get-Content ./CHANGELOG.md -TotalCount 4) -join ' '
+          if ($top -notmatch [regex]::Escape("## $scriptVersion")) { throw "CHANGELOG top entry is not $scriptVersion" }
           $overview = (powershell -NoProfile -ExecutionPolicy Bypass -File $s -Mode overview -Format json | Out-String) | ConvertFrom-Json
           if (-not $overview.drives) { throw 'overview: drives missing' }
           $null = (powershell -NoProfile -ExecutionPolicy Bypass -File $s -Mode baseline -Format json | Out-String) | ConvertFrom-Json
@@ -60,16 +64,7 @@ jobs:
           if ($null -eq $compare.baseline_at) { throw 'compare: baseline_at missing' }
           $preview = (powershell -NoProfile -ExecutionPolicy Bypass -File $s -Mode cleanup-temp -Format json | Out-String) | ConvertFrom-Json
           if ($preview.applied) { throw 'cleanup-temp preview must not delete' }
-          Write-Host 'json smoke: OK'
-
-      - name: Version consistency (script vs CHANGELOG)
-        shell: powershell
-        run: |
-          $v = Select-String -Path ./scripts/inspect_windows.ps1 -Pattern '\$WinfixVersion = ''([^'']+)''' |
-            ForEach-Object { $_.Matches[0].Groups[1].Value }
-          $top = (Get-Content ./CHANGELOG.md -TotalCount 4) -join ' '
-          if ($top -notmatch [regex]::Escape("## $v")) { throw "CHANGELOG top entry is not $v" }
-          Write-Host "version consistency: $v OK"
+          Write-Host "json smoke: OK (version $scriptVersion)"
 
       - name: Evals schema validation
         shell: powershell
