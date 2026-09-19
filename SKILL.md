@@ -314,6 +314,7 @@ a comparison.
 | High | Downloads, Desktop, Documents, WeChat received files, browser profile, SSH/API keys, source repos | Ask for explicit path-level approval |
 | Admin | Windows component store, system restore, feature removal, DISM, WSL feature disable | Explain admin requirement and risk |
 
+Read `references/known-folders.md` when explaining what a folder is or whether it can be cleaned; unmatched paths follow the unknown-folder triage there — never guess a purpose.
 Read `references/safety.md` when planning non-trivial cleanup or when user asks "哪些可以清理".
 Read `references/issue-routes.md` when the problem is vague or multi-symptom.
 Read `references/release-checklist.md` before packaging or publishing this skill.
