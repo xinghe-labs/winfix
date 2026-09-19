@@ -12,7 +12,7 @@ param(
   [string]$Format = 'text'
 )
 
-$WinfixVersion = '0.2.2'
+$WinfixVersion = '0.2.3'
 $ErrorActionPreference = 'SilentlyContinue'
 $MaxFilesPerFolder = 20000
 

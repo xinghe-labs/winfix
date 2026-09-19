@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.3 - 2026-09-19
+
+- Added `references/known-folders.md`: a curated folder knowledge base (what each common Windows folder is, its risk level, whether/how it can be cleaned, and what regenerates afterwards), including a verified case for Windows-update staging leftovers (hash-named roots containing .cab/.psf/.msu). Unmatched paths follow an explicit unknown-folder triage flow instead of guessed purposes. SKILL.md routes folder-explanation questions through it.
+
 ## 0.2.2 - 2026-09-19
 
 - `large` mode accepts `-Path <dir>` to deep-scan any directory or drive root (previously hardcoded to the user profile), and now includes a system root breakdown (`C:\Windows`, `Program Files`, `ProgramData`, ...) plus pagefile/hiberfil/swapfile sizes with honest "sampled" caveats.

@@ -23,6 +23,7 @@ WinFix 是一个用于 Windows 电脑维护的 agent skill。你只需要描述�
 - 蓝屏、自动重启、卡死、闪退等事件日志线索分析
 - Defender 和防火墙状态检查
 - "电脑最近变卡了"——和上个月的基线对比，差异说话
+- 分析每个文件夹是干什么的、能不能清——内置目录知识库，未知目录走排查流程而不是猜
 
 ## 安装
 
@@ -166,6 +167,7 @@ C:\Windows\Temp    True                195 41.90 MB                34
 - `SKILL.md`
 - `scripts/inspect_windows.ps1`
 - `references/safety.md`
+- `references/known-folders.md`
 - `references/issue-routes.md`
 - `references/release-checklist.md`
 - `evals/evals.json`
