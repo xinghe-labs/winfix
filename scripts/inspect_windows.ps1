@@ -197,8 +197,10 @@ function Get-BootDurations {
 }
 
 function Get-StartupInventory {
+  # Baselines intentionally store identity (name + location) only.  Full
+  # command lines can embed API keys and tokens; they must not be persisted.
   Get-CimInstance Win32_StartupCommand -ErrorAction SilentlyContinue |
-    Select-Object name, command, location, user
+    Select-Object name, location
 }
 
 function Get-HealthScore {
@@ -639,7 +641,7 @@ function Test-NetworkTarget([string]$TargetValue) {
     $uri = [Uri]("https://" + $TargetValue)
   }
   $hostName = $uri.Host
-  "Target: $($uri.AbsoluteUri)"
+  "Target: $(Redact-SensitiveText $uri.AbsoluteUri)"
   Resolve-DnsName $hostName -ErrorAction SilentlyContinue | Select-Object -First 3 Name, Type, IPAddress | Format-Table -AutoSize
   curl.exe -I --connect-timeout 10 --max-time 20 $uri.AbsoluteUri 2>&1 | Select-Object -First 20
 }
