@@ -27,23 +27,15 @@ WinFix 是一个用于 Windows 电脑维护的 agent skill。你只需要描述�
 
 ## 安装
 
-推荐（自动安装到检测到的所有宿主）：
+推荐：一条命令，直接克隆进用户级共享 skill 目录，路径写死，不指定宿主。`%USERPROFILE%\.agents\skills\` 是 Agent Skills 的通用约定目录，ZCode、Claude Code 等宿主都从这里读取，装一份全局生效：
 
 ```powershell
-npx skills add xinghe-labs/winfix -g
+git clone --depth 1 https://github.com/xinghe-labs/winfix.git "$env:USERPROFILE\.agents\skills\winfix"
 ```
 
-手动安装：把仓库复制到你宿主的 skill 目录，目录内含 `SKILL.md` 即可：
-
-| 宿主 | skill 目录 |
-|---|---|
-| Codex | `%USERPROFILE%\.agents\skills\winfix` 或 `%USERPROFILE%\.codex\skills\winfix` |
-| Claude Code | `%USERPROFILE%\.claude\skills\winfix` |
-| 其他支持 Agent Skills 规范的宿主 | 参照宿主文档 |
-
-```powershell
-git clone https://github.com/xinghe-labs/winfix.git "$env:USERPROFILE\.claude\skills\winfix"
-```
+- 更新：进入该目录 `git pull`（见下方"更新与版本"）。
+- 备选，用 skills CLI 代管：`npx skills add xinghe-labs/winfix -g` 会自动铺到检测到的所有宿主，之后用 `npx skills update winfix` 统一更新；只想装指定宿主就加 `-a`，例如 `npx skills add xinghe-labs/winfix -a codex -y` 装到 `%USERPROFILE%\.codex\skills\winfix`。
+- 备选，手动复制：把仓库内容复制成 `%USERPROFILE%\.agents\skills\winfix`，目录内含 `SKILL.md` 即可。
 
 安装后，可以这样问 agent：
 
@@ -111,36 +103,10 @@ Root            Allowed WouldDeleteEntries WouldFree SkippedRecent24h
 C:\Windows\Temp    True                195 41.90 MB                34
 ```
 
-基线对比示例（"感觉变卡了"时跑 `compare`）：
-
-```text
-Baseline: 2026-09-19T12:10:06   Now: 2026-09-19T12:10:10
-=== Drive free-space change ===
-
-Drive Before    Now       Change
------ ------    -------   --------
-C:    23.18 GB  23.18 GB  -69632 B
-D:    59.25 GB  59.25 GB  0 B
-
-=== Startup items ===
-added: 0   removed: 0
-```
-
-临时清理预览示例（不加 `-Apply` 永远只预览）：
-
-```text
-=== Temp cleanup preview ===
-Nothing has been deleted. Add -Apply to execute the plan below.
-
-Root            Allowed WouldDeleteEntries WouldFree SkippedRecent24h
-----            ------- ------------------ --------- ----------------
-C:\Windows\Temp    True                195 41.90 MB                34
-```
-
 ## 更新与版本
 
+- git 克隆到 `.agents\skills` 的（推荐方式）：进入 skill 目录 `git pull`；若提示 unrelated histories，说明没有本地改动，`git fetch` 后 `git reset --hard origin/main`
 - 通过 skills CLI 安装的：`npx skills update winfix`
-- git 克隆安装的：`git pull`（若提示 unrelated histories，说明本地无本地改动，可直接 `git fetch` 后 `git reset --hard origin/main`）
 - 手动复制的：重新复制覆盖
 - 当前运行版本看 `health` 输出的 `Version` 字段，与 [CHANGELOG.md](CHANGELOG.md) 对照
 
