@@ -113,7 +113,7 @@ Nothing has been deleted. Add -Apply to execute the plan below.
 Root              Allowed WouldDeleteEntries WouldFree SkippedRecent24h SkippedLinks
 ----              ------- ------------------ --------- ---------------- ------------
 C:\Windows\Temp      True                 31 23.25 MB               27            0
-D:\AgentWork\tmp     True                120 355.37 MB               14            2
+D:\Temp              True                120 355.37 MB               14            2
 ```
 
 被重定向到其它盘的 `%TEMP%` 也能清（只要目录名是 `temp`/`tmp`），而 `C:\`、`C:\Windows`、用户目录会被直接拒绝。
