@@ -1,5 +1,9 @@
 # WinFix
 
+[![CI](https://github.com/xinghe-labs/winfix/actions/workflows/ci.yml/badge.svg)](https://github.com/xinghe-labs/winfix/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+![no telemetry](https://img.shields.io/badge/telemetry-none-brightgreen.svg)
+
 WinFix 是一个用于 Windows 电脑维护的 agent skill。你只需要描述遇到的问题，它会先检查本机状态，再根据证据给出清理、修复或优化建议。
 
 它的原则是"先诊断，再处理"：先收集磁盘、内存、网络、驱动、事件日志等证据，再解释问题原因，优先选择低风险方案，并在操作后做验证。默认不会静默删除用户文件，也不会直接修改系统关键设置。
@@ -139,7 +143,15 @@ D:\Temp              True                120 355.37 MB               14         
 
 ## 安全边界
 
-默认情况下，WinFix 只做只读检查。安全边界不是承诺，是代码路径，而且可以用 `-Mode self-test` 一条命令自证：
+默认情况下，WinFix 只做只读检查。安全边界不是承诺，是代码路径 —— 你可以一条命令自己验证：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode self-test
+```
+
+它会逐项断言：临时目录白名单（接受重定向的 `%TEMP%`，拒绝磁盘根/`C:\Windows`/用户目录）、凭据脱敏、24 小时跳过、junction 不被列入删除计划、基线目录位置、症状路由回归、脚本版本与 CHANGELOG 一致。任何一项失败都打印 FAIL 并以非零退出码结束。
+
+下面这些不是姿态，是同一个脚本里可以逐行核对、并且被 CI 强制检查的事实：
 
 - 整个脚本里能**删除**用户文件的模式只有一个：`-Mode cleanup-temp`。而且它默认只输出预览，必须显式加 `-Apply` 才会执行；删除根来自白名单（`%LOCALAPPDATA%\Temp`、`C:\Windows\Temp`，以及目录名是 `temp`/`tmp` 的重定向 `%TEMP%`/`%TMP%`），磁盘根目录/`C:\Windows`/用户目录一律拒绝；自动跳过 24 小时内修改过的文件（不弄崩正在跑的安装程序）；目录软链接（junction/symlink）永不穿透删除，删除前还会再校验一次父目录。
 - 能**写入**文件的地方只有两处：基线快照存到你自己的 `~\.winfix\baselines\` 目录（只保留最近 20 份），以及 `self-test` 在自己创建的 `%TEMP%\winfix-selftest-*` 沙箱里建/删自己的测试文件。
@@ -151,6 +163,20 @@ D:\Temp              True                120 355.37 MB               14         
 另外三条硬事实：脚本自身**零网络行为**（`net-test` 只在你显式给地址时才测试那个地址）、**零遥测零自动更新**（不上报任何数据、不下载任何内容）、输出**自动脱敏**（代理和 URL 里内嵌的凭据会替换成 `***`）。完整的威胁模型和「不信任我们就自己跑一遍」的验证命令见 [SECURITY.md](SECURITY.md)。
 
 高风险区域包括：下载、桌面、文档、聊天文件、浏览器配置、SSH/API 密钥、Docker 卷、WSL 发行版、驱动、注册表、BitLocker、磁盘分区和 Windows 安全设置。
+
+## 常见问题
+
+**会误删我的文件吗？**
+不会。全脚本只有 `cleanup-temp` 能删东西，而且默认只预览，不加 `-Apply` 不执行；范围只限临时目录白名单，24 小时内改过的文件跳过，junction 不穿透。不放心就跑 `-Mode self-test` 自己验一遍。
+
+**需要管理员权限吗？**
+只读诊断不需要。少数项（SMART 计数器、Windows 组件存储）没权限时会直说“不可用”，不会假装读到了。
+
+**会联网吗？**
+脚本自身零网络请求，零遥测，零自动更新。`net-test` 只在你显式给地址时测那一个地址。
+
+**支持 Windows 10 吗？**
+Win10 / Win11 + PowerShell 5.1 或 7 都测过。数据源缺失时（比如开机性能日志被禁）对应组件自动剔除并在分数里重归一化，不猜数。
 
 ## 兼容性
 
@@ -165,11 +191,10 @@ Issue 与 PR 同样欢迎：https://github.com/xinghe-labs/winfix/issues
 
 ## 主要文件
 
-- `SKILL.md`
-- `scripts/inspect_windows.ps1`（UTF-8 with BOM，Windows PowerShell 5.1 需要）
-- `references/safety.md`
-- `references/known-folders.md`
-- `references/issue-routes.md`
-- `references/release-checklist.md`
-- `evals/evals.json`
-- `SECURITY.md`
+- [`SKILL.md`](SKILL.md) —— agent 读的路由与契约
+- [`scripts/inspect_windows.ps1`](scripts/inspect_windows.ps1) —— 唯一的可执行文件（UTF-8 with BOM，Windows PowerShell 5.1 需要）
+- [`references/safety.md`](references/safety.md) / [`known-folders.md`](references/known-folders.md) / [`issue-routes.md`](references/issue-routes.md) / [`release-checklist.md`](references/release-checklist.md)
+- [`evals/evals.json`](evals/evals.json) —— 预期行为用例（CI 校验）
+- [`SECURITY.md`](SECURITY.md) —— 威胁模型与自审命令
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) —— 改动原则与本地验证
+- [`LICENSE`](LICENSE) —— MIT
