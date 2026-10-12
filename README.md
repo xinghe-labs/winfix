@@ -78,20 +78,20 @@ powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.p
 健康分输出示例（真实机器）：
 
 ```text
-Version       : 0.3.0
-Score         : 24
+Version       : 0.3.1
+Score         : 32
 PendingReboot : True
 
 Component Score Weight Measured
 --------- ----- ------ --------
 disk         38     30 min drive free 12.7%
-memory       30     25 memory used 84.6%
+memory       59     25 memory used 74.5%
 stability     0     15 50 critical/error events in 3d; 0 problem devices; 0 unhealthy disks
 startup      65     10 15 startup items
 updates     100      5 last hotfix 13 days ago
 security      0      5 Defender real-time off
 
-Biggest lever: stability (50 critical/error events in 3d; ...)
+Biggest lever: disk (min drive free 12.7%)
 ```
 
 基线对比示例（"感觉变卡了"时跑 `compare`）：
