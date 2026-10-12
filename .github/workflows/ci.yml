@@ -17,7 +17,7 @@ jobs:
   script:
     name: script (windows, powershell 5.1)
     runs-on: windows-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
@@ -34,45 +34,123 @@ jobs:
           }
           Write-Host 'parse: OK'
 
+      - name: UTF-8 BOM (Windows PowerShell 5.1 needs it for non-ASCII literals)
+        shell: powershell
+        run: |
+          $b = [System.IO.File]::ReadAllBytes((Join-Path $PWD 'scripts/inspect_windows.ps1'))[0..2]
+          if (-not (($b[0] -eq 0xEF) -and ($b[1] -eq 0xBB) -and ($b[2] -eq 0xBF))) {
+            Write-Host 'scripts/inspect_windows.ps1 is missing its UTF-8 BOM'
+            exit 1
+          }
+          Write-Host 'bom: OK'
+
       - name: Dangerous-construct guard (SECURITY.md claims)
         shell: powershell
         run: |
           $patterns = @('Invoke-Expression', 'DownloadString', 'DownloadFile',
-            'System.Net.WebClient', 'Invoke-WebRequest', 'Invoke-RestMethod', 'iex ')
+            'System.Net.WebClient', 'Invoke-WebRequest', 'Invoke-RestMethod',
+            'iex ', 'Start-Process', 'cmd /c', 'cmd.exe')
           $hits = Select-String -Path ./scripts/inspect_windows.ps1 -Pattern $patterns
           if ($hits) { $hits | ForEach-Object { Write-Host $_.Line }; exit 1 }
-          $sp = @(Select-String -Path ./scripts/inspect_windows.ps1 -Pattern 'Start-Process')
-          if ($sp.Count -ne 1) { Write-Host "Start-Process must appear exactly once (the wsl UTF-16 wrapper), found $($sp.Count)"; exit 1 }
-          Write-Host 'dangerous constructs: none (Start-Process x1 = wsl wrapper)'
+          Write-Host 'dangerous constructs: none'
 
-      - name: JSON smoke (health / overview / baseline / compare / cleanup preview)
+      - name: Remove-Item ownership (AST)
+        shell: powershell
+        run: |
+          $ast = [System.Management.Automation.Language.Parser]::ParseFile(
+            (Join-Path $PWD 'scripts/inspect_windows.ps1'), [ref]$null, [ref]$null)
+          $allowed = @('Invoke-TempCleanup', 'Save-Baseline', 'Invoke-SelfTest')
+          $bad = @()
+          $all = $ast.FindAll({ param($n)
+            $n -is [System.Management.Automation.Language.CommandAst] -and $n.GetCommandName() -eq 'Remove-Item'
+          }, $true)
+          foreach ($cmd in $all) {
+            $node = $cmd.Parent
+            $fn = '<script scope>'
+            while ($node) {
+              if ($node -is [System.Management.Automation.Language.FunctionDefinitionAst]) { $fn = $node.Name; break }
+              $node = $node.Parent
+            }
+            if ($allowed -notcontains $fn) { $bad += "line $($cmd.Extent.StartLineNumber) in $fn" }
+          }
+          if ($bad.Count -gt 0) {
+            $bad | ForEach-Object { Write-Host "Remove-Item outside the allowed functions: $_" }
+            exit 1
+          }
+          Write-Host "Remove-Item occurrences: $($all.Count), all inside $($allowed -join ', ')"
+          if ($all.Count -eq 0) { Write-Host 'warning: no Remove-Item found at all'; exit 1 }
+
+      - name: Docs <-> script mode consistency
+        shell: powershell
+        run: |
+          # Read via .NET so a non-UTF8 console codepage cannot mangle the docs.
+          $src = [System.IO.File]::ReadAllText((Join-Path $PWD 'scripts/inspect_windows.ps1'))
+          $m = [regex]::Match($src, "\[ValidateSet\(([^)]*)\)\]")
+          if (-not $m.Success) { throw 'cannot find ValidateSet in the script' }
+          $modes = @($m.Groups[1].Value -split ',' | ForEach-Object { $_.Trim().Trim("'") } | Where-Object { $_ } | Sort-Object -Unique)
+          $docs = [System.IO.File]::ReadAllText((Join-Path $PWD 'SKILL.md')) + "`n" + [System.IO.File]::ReadAllText((Join-Path $PWD 'README.md'))
+          $docModes = @([regex]::Matches($docs, '-Mode\s+([a-z][a-z0-9\-]+)') |
+            ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique)
+          $undocumented = @($modes | Where-Object { $docModes -notcontains $_ })
+          $nonexistent = @($docModes | Where-Object { $modes -notcontains $_ })
+          if ($undocumented.Count -gt 0) { throw "modes missing from SKILL.md/README.md: $($undocumented -join ', ')" }
+          if ($nonexistent.Count -gt 0) { throw "documented modes that do not exist: $($nonexistent -join ', ')" }
+          Write-Host "modes: $($modes.Count) documented and implemented"
+
+      - name: Self-test (safety contract)
+        shell: powershell
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/inspect_windows.ps1 -Mode self-test
+          if ($LASTEXITCODE -ne 0) { throw "self-test exited $LASTEXITCODE" }
+          Write-Host 'self-test: OK'
+
+      - name: JSON smoke for every mode (valid JSON, ASCII-only, empty stderr)
         shell: powershell
         run: |
           $s = './scripts/inspect_windows.ps1'
+          $src = [System.IO.File]::ReadAllText((Join-Path $PWD 'scripts/inspect_windows.ps1'))
+          $m = [regex]::Match($src, "\[ValidateSet\(([^)]*)\)\]")
+          $modes = @($m.Groups[1].Value -split ',' | ForEach-Object { $_.Trim().Trim("'") } | Where-Object { $_ })
           $scriptVersion = (Select-String -Path $s -Pattern '\$WinfixVersion = ''([^'']+)''') |
             ForEach-Object { $_.Matches[0].Groups[1].Value }
           if (-not $scriptVersion) { throw 'cannot read $WinfixVersion from script' }
-          $health = (powershell -NoProfile -ExecutionPolicy Bypass -File $s -Mode health -Format json | Out-String) | ConvertFrom-Json
-          if ($health.version -ne $scriptVersion) { throw "health: version mismatch ($($health.version) vs $scriptVersion)" }
-          $top = (Get-Content ./CHANGELOG.md -TotalCount 4) -join ' '
+          $top = ([System.IO.File]::ReadAllText((Join-Path $PWD 'CHANGELOG.md')) -split "`n" | Select-Object -First 4) -join ' '
           if ($top -notmatch [regex]::Escape("## $scriptVersion")) { throw "CHANGELOG top entry is not $scriptVersion" }
-          $overview = (powershell -NoProfile -ExecutionPolicy Bypass -File $s -Mode overview -Format json | Out-String) | ConvertFrom-Json
-          if (-not $overview.drives) { throw 'overview: drives missing' }
-          $null = (powershell -NoProfile -ExecutionPolicy Bypass -File $s -Mode baseline -Format json | Out-String) | ConvertFrom-Json
-          $null = (powershell -NoProfile -ExecutionPolicy Bypass -File $s -Mode baseline -Format json | Out-String) | ConvertFrom-Json
-          $compare = (powershell -NoProfile -ExecutionPolicy Bypass -File $s -Mode compare -Format json | Out-String) | ConvertFrom-Json
-          if ($null -eq $compare.baseline_at) { throw 'compare: baseline_at missing' }
-          $preview = (powershell -NoProfile -ExecutionPolicy Bypass -File $s -Mode cleanup-temp -Format json | Out-String) | ConvertFrom-Json
-          if ($preview.applied) { throw 'cleanup-temp preview must not delete' }
-          Write-Host "json smoke: OK (version $scriptVersion)"
+
+          foreach ($mode in $modes) {
+            $extra = @()
+            if ($mode -eq 'net-test') { $extra = @('-Target', 'https://www.microsoft.com') }
+            if ($mode -eq 'app') { $extra = @('-ProcessName', 'explorer') }
+            if ($mode -eq 'issue') { $extra = @('-Issue', 'disk space') }
+            $out = & powershell -NoProfile -ExecutionPolicy Bypass -File $s -Mode $mode -Format json @extra 2>$null
+            $exit = $LASTEXITCODE
+            $json = ($out | Out-String).Trim()
+            if ($exit -ne 0) { throw "mode $mode exited $exit" }
+            try { $parsed = $json | ConvertFrom-Json } catch { throw "mode $mode produced invalid JSON: $($_.Exception.Message)" }
+            if ($parsed.mode -ne $mode) { throw "mode $mode JSON reports mode '$($parsed.mode)'" }
+            foreach ($ch in $json.ToCharArray()) {
+              if ([int]$ch -gt 127) { throw "mode $mode JSON contains non-ASCII characters (breaks OEM-codepage parents)" }
+            }
+          }
+          Write-Host "json smoke: OK for $($modes.Count) modes (version $scriptVersion)"
 
       - name: Evals schema validation
         shell: powershell
         run: |
-          $evals = Get-Content ./evals/evals.json -Raw | ConvertFrom-Json
+          # .NET read: the evals file is UTF-8 without BOM and contains Chinese
+          # prompts, which a cp936 console would mangle via Get-Content.
+          $evals = [System.IO.File]::ReadAllText((Join-Path $PWD 'evals/evals.json')) | ConvertFrom-Json
           if ($evals.skill_name -ne 'winfix') { throw 'skill_name mismatch' }
+          $src = [System.IO.File]::ReadAllText((Join-Path $PWD 'scripts/inspect_windows.ps1'))
+          $m = [regex]::Match($src, "\[ValidateSet\(([^)]*)\)\]")
+          $modes = @($m.Groups[1].Value -split ',' | ForEach-Object { $_.Trim().Trim("'") } | Where-Object { $_ })
+          $ids = @()
           foreach ($e in $evals.evals) {
             if (-not $e.id -or -not $e.prompt -or -not $e.expected_output) { throw "eval $($e.id) missing fields" }
+            if ($ids -contains $e.id) { throw "duplicate eval id $($e.id)" }
+            $ids += $e.id
+            if (-not $e.mode) { throw "eval $($e.id) has no mode" }
+            if ($modes -notcontains $e.mode) { throw "eval $($e.id) references unknown mode '$($e.mode)'" }
           }
           Write-Host "evals: $($evals.evals.Count) entries OK"
 

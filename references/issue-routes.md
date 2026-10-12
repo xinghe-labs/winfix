@@ -108,15 +108,35 @@ Printer:
 ## Feels slower than before
 
 1. Run `compare`. If no baseline exists, say so honestly and run `baseline` instead.
-2. Read drive deltas, startup additions, and service count changes as the story.
-3. If startup items were added, name them and ask before disabling anything.
+2. Read drive deltas, startup additions, scheduled-task additions, and service count changes as the story.
+3. If startup items or scheduled tasks were added, name them and ask before disabling anything.
 4. If nothing changed, say so — the feeling may be load-related, not state-related.
+
+## Disk may be dying (bad sectors, SMART, "is my disk failing")
+
+1. Run `smart`.
+2. Report HealthStatus / OperationalStatus for every physical disk and volume.
+3. SMART counters (temperature, wear, read/write errors) usually need an elevated
+   shell — say that plainly instead of implying the disk is fine.
+4. If any disk is non-Healthy, tell the user to back up important data first, and
+   that software repair cannot fix failing hardware.
+
+## Big files
+
+1. Run `files` (add `-Path <dir>` and `-MinSizeMB` to narrow or widen).
+2. Distinguish user documents from regenerable artifacts before suggesting deletion.
+3. Never delete a file just because it is large; ask what it is.
+
+## Verifying this skill itself
+
+1. Run `self-test`. It is read-only and exits non-zero on failure.
+2. Report the failing assertion verbatim; do not hand-wave it away.
 
 ## Baseline habit
 
 1. After a clean state or a big cleanup, run `baseline`.
 2. Compare whenever the user reports a change.
-3. Baselines live only in `~\.winfixaselines\`; never treat them as system backups.
+3. Baselines live only in `~\.winfix\baselines\`; never treat them as system backups.
 
 ## Cleanup response contract
 

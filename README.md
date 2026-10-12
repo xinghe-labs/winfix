@@ -6,20 +6,24 @@ WinFix 是一个用于 Windows 电脑维护的 agent skill。你只需要描述�
 
 ## 和一般"清理工具"的区别
 
-- **健康分**：一条命令给出 0-100 的机器健康分，六个组件各自打分并附实测证据（磁盘余量、内存压力、系统错误事件、开机耗时、启动项数量、更新新鲜度），最薄弱项直接点名。数据不可用的组件自动剔除、权重重归一化，不装样子。
-- **基线与对比**：它记得你的机器长什么样。`baseline` 存一份快照，之后任何时刻 `compare` 都能告诉你：这段时间哪个盘少了多少空间、多了哪些开机启动项、异常服务数量变化。"感觉电脑变卡了"从此不再是玄学。
+- **健康分**：一条命令给出 0-100 的机器健康分，七个组件各自打分并附实测证据（磁盘余量、内存压力、系统错误事件与问题设备、物理磁盘健康、开机耗时、启动项数量、更新新鲜度、Defender 实时防护），并直接点名"最该修的那一项"（按 权重 × 缺口 排序，而不是单纯看谁分数低）。数据不可用的组件自动剔除、权重重归一化，不装样子。
+- **磁盘健康**：`smart` 模式读物理磁盘/卷的 HealthStatus、OperationalStatus 和 SMART 计数器（计数器通常需要管理员，脚本会如实说明"没权限"而不是假装磁盘健康）。
+- **基线与对比**：它记得你的机器长什么样。`baseline` 存一份快照（含启用的非微软计划任务），之后任何时刻 `compare` 都能告诉你：这段时间哪个盘少了多少空间、多了哪些开机启动项和计划任务、异常服务数量变化。"感觉电脑变卡了"从此不再是玄学。
+- **大文件定位**：`files` 模式按大小列出目录下的最大文件（含修改日期），补上"只知道占空间、不知道是哪个文件"的最后一公里。
+- **一条命令自证安全**：`self-test` 逐项断言安全契约（临时目录白名单、凭据脱敏、24 小时跳过、junction 不穿透、基线位置、路由回归、版本一致），任何一项失败就退出码非零。
 - **开机耗时分析**：从系统诊断日志读取最近几次真实开机时长，纳入健康分（日志不可用时自动跳过，不猜数）。
-- **WSL/Docker 虚胖检测**：定位每个发行版和 Docker 的 vhdx 虚拟磁盘文件——它们只涨不缩，脚本会给出安全的收缩路线（含管理员边界和备份提醒）。
+- **WSL/Docker 虚胖检测**：从注册表读取每个发行版的真实 BasePath（自定义安装路径也能找到），给出每个 vhdx 的大小和安全的收缩路线（含管理员边界和备份提醒）。
 - **零依赖**：单个 PowerShell 脚本，全部使用 Windows 内置命令，不捆绑任何 EXE，不需要管理员权限即可完成全部只读诊断。
 
 ## 能解决什么
 
-- C 盘空间不足、大文件定位、临时文件和缓存清理
-- 内存占用高、进程排查、开机启动项分析、开机耗时
+- C 盘空间不足、大文件定位、临时文件和缓存清理（含回收站、崩溃转储、错误报告、更新残留）
+- 内存占用高、进程排查、开机启动项与计划任务分析、开机耗时
 - Chrome、Edge、VS Code、微信以及普通软件卡顿或打不开
-- 网络、代理、DNS、HTTP 连通性检查
+- 网络、代理（WinHTTP + 系统代理）、DNS、HTTP 连通性检查与故障分类
 - Windows 更新、驱动、设备、声音、显示器、打印机问题
-- WSL、Docker、Android、Flutter、Java、Node、Python、Git 开发环境检查
+- 硬盘健康、SMART、坏道怀疑
+- WSL、Docker、Android、Flutter、Java、Node、Python、Git 开发环境检查（含"哪些工具没装/版本不对"的结论）
 - 蓝屏、自动重启、卡死、闪退等事件日志线索分析
 - Defender 和防火墙状态检查
 - "电脑最近变卡了"——和上个月的基线对比，差异说话
@@ -56,25 +60,33 @@ powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.p
 powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode baseline
 powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode compare
 powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode disk -Format json
+powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode disk -Deep
+powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode files -Path "D:\Projects" -MinSizeMB 200
+powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode smart
 powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode net-test -Target "https://www.microsoft.com"
 powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode app -ProcessName chrome
+powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode self-test
 ```
+
+所有模式都支持 `-Format json`（核心模式是原生结构化 JSON，其余模式按 `=== 标题 ===` 切成 `sections`），而且 JSON 模式只输出 ASCII（非 ASCII 字符转成 `\uXXXX`），所以中文路径不会被中间层的代码页弄坏；JSON 模式下 stderr 保持为空，`2>&1` 不会污染结果。
 
 健康分输出示例（真实机器）：
 
 ```text
-Score         : 33
+Version       : 0.3.0
+Score         : 24
 PendingReboot : True
 
 Component Score Weight Measured
 --------- ----- ------ --------
-disk         34     30 min drive free 11.7%
-memory       61     25 memory used 73.5%
-stability     0     15 21 critical/error events in 3d; 0 problem devices
+disk         38     30 min drive free 12.7%
+memory       30     25 memory used 84.6%
+stability     0     15 50 critical/error events in 3d; 0 problem devices; 0 unhealthy disks
 startup      65     10 15 startup items
-updates     100      5 last hotfix 5 days ago
+updates     100      5 last hotfix 13 days ago
+security      0      5 Defender real-time off
 
-Weakest component: stability (21 critical/error events in 3d)
+Biggest lever: stability (50 critical/error events in 3d; ...)
 ```
 
 基线对比示例（"感觉变卡了"时跑 `compare`）：
@@ -98,9 +110,23 @@ added: 0   removed: 0
 === Temp cleanup preview ===
 Nothing has been deleted. Add -Apply to execute the plan below.
 
-Root            Allowed WouldDeleteEntries WouldFree SkippedRecent24h
-----            ------- ------------------ --------- ----------------
-C:\Windows\Temp    True                195 41.90 MB                34
+Root              Allowed WouldDeleteEntries WouldFree SkippedRecent24h SkippedLinks
+----              ------- ------------------ --------- ---------------- ------------
+C:\Windows\Temp      True                 31 23.25 MB               27            0
+D:\AgentWork\tmp     True                120 355.37 MB               14            2
+```
+
+被重定向到其它盘的 `%TEMP%` 也能清（只要目录名是 `temp`/`tmp`），而 `C:\`、`C:\Windows`、用户目录会被直接拒绝。
+
+磁盘候选输出示例（每个候选项都是 `大小 | 风险 | 是什么 | 完整路径`，并标明数字是 `full`/`sampled`/`partial`）：
+
+```text
+1.03 GB  [low]  Chrome 缓存 (Profile 21)
+    C:\Users\you\AppData\Local\Google\Chrome\User Data\Profile 21\Service Worker
+983.82 MB  [low]  回收站
+    C:\$Recycle.Bin
+723.19 MB  [low]  npm 包缓存
+    C:\Users\you\AppData\Local\npm-cache
 ```
 
 ## 更新与版本
@@ -112,11 +138,12 @@ C:\Windows\Temp    True                195 41.90 MB                34
 
 ## 安全边界
 
-默认情况下，WinFix 只做只读检查。安全边界不是承诺，是代码路径：
+默认情况下，WinFix 只做只读检查。安全边界不是承诺，是代码路径，而且可以用 `-Mode self-test` 一条命令自证：
 
-- 整个脚本里能**删除**文件的模式只有一个：`-Mode cleanup-temp`。而且它默认只输出预览，必须显式加 `-Apply` 才会执行；执行时只允许 `%TEMP%` 和 `C:\Windows\Temp` 两个精确根目录，并自动跳过 24 小时内修改过的文件（不弄崩正在跑的安装程序）。
-- 能**写入**文件的地方只有一处：基线快照存到你自己的 `~\.winfix\baselines\` 目录。
-- 至于下载、桌面、文档、微信文件、浏览器配置、SSH/API 密钥这些高风险区——脚本里不存在能触及它们的代码路径。这不是姿态，是源码里可以逐行核对的事实。
+- 整个脚本里能**删除**用户文件的模式只有一个：`-Mode cleanup-temp`。而且它默认只输出预览，必须显式加 `-Apply` 才会执行；删除根来自白名单（`%LOCALAPPDATA%\Temp`、`C:\Windows\Temp`，以及目录名是 `temp`/`tmp` 的重定向 `%TEMP%`/`%TMP%`），磁盘根目录/`C:\Windows`/用户目录一律拒绝；自动跳过 24 小时内修改过的文件（不弄崩正在跑的安装程序）；目录软链接（junction/symlink）永不穿透删除，删除前还会再校验一次父目录。
+- 能**写入**文件的地方只有两处：基线快照存到你自己的 `~\.winfix\baselines\` 目录（只保留最近 20 份），以及 `self-test` 在自己创建的 `%TEMP%\winfix-selftest-*` 沙箱里建/删自己的测试文件。
+- 至于下载、桌面、文档、微信文件、浏览器配置、SSH/API 密钥这些高风险区——脚本里不存在能触及它们的代码路径。这不是姿态，是源码里可以逐行核对的事实，CI 还会用 AST 检查 `Remove-Item` 只出现在允许的函数里。
+- 扫描是**有上限**的：每个目录 20000 个文件 / 6 秒，每个 section 45 秒，不穿透目录软链接；每个数字都标 `full`/`sampled`/`partial`/`missing`，不会把"采样值"当"精确值"报给你。
 
 除非用户明确确认，否则它不会注销 WSL 发行版、清理 Docker 卷、修改注册表、卸载驱动、调整安全设置，也不会运行系统修复命令。
 
@@ -126,7 +153,9 @@ C:\Windows\Temp    True                195 41.90 MB                34
 
 ## 兼容性
 
-已在 Windows PowerShell 环境下测试（Windows 10/11，中文控制台）。部分诊断命令受 Windows 版本、PowerShell 版本和权限影响；某些数据源不存在时（如开机性能日志被禁用），对应组件自动跳过而不是报错中断。
+已在 Windows PowerShell 5.1 与 PowerShell 7（Windows 10/11，中文控制台）上测试。部分诊断命令受 Windows 版本、PowerShell 版本和权限影响；某些数据源不存在时（如开机性能日志被禁用、SMART 计数器需要管理员），对应组件自动跳过或如实标注不可用，而不是报错中断。
+
+外部命令一律带超时（默认 20 秒，`flutter` 90 秒），卡住会返回"超时"而不是永远挂着；输出编码按字节嗅探（wsl.exe 是 UTF-16LE、netsh/powercfg 是 OEM 代码页、curl 是 UTF-8），不再假设一种编码。
 
 ## 社区
 
@@ -136,9 +165,10 @@ Issue 与 PR 同样欢迎：https://github.com/xinghe-labs/winfix/issues
 ## 主要文件
 
 - `SKILL.md`
-- `scripts/inspect_windows.ps1`
+- `scripts/inspect_windows.ps1`（UTF-8 with BOM，Windows PowerShell 5.1 需要）
 - `references/safety.md`
 - `references/known-folders.md`
 - `references/issue-routes.md`
 - `references/release-checklist.md`
 - `evals/evals.json`
+- `SECURITY.md`

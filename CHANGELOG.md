@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.3.0 - 2026-10-12
+
+- Fixed a bug that made `dev` / `android` useless: the helper's `$Args` parameter collided with PowerShell's automatic `$Args`, so no argument was ever passed (git printed its usage text as its "version", npm printed its command list, node/python printed nothing). Dev probes now report `status` (ok/missing/timeout/error), the resolved path and a readiness verdict, and every external command has a hard timeout.
+- Fixed `cleanup-temp` doing nothing on machines whose `%TEMP%` is redirected to another drive (it was judged "not an allowed root" and skipped). The allowlist now accepts a redirected `%TEMP%`/`%TMP%` whose leaf is `temp`/`tmp`, and still refuses drive roots, `C:\Windows`, and profile roots.
+- Fixed WSL virtual-disk detection: distros imported to a custom `BasePath` (for example `D:\WSL\Ubuntu`) were invisible, so a machine with 6 GB of WSL vhdx reported "no vhdx found". Detection now reads `HKCU:\Software\Microsoft\Windows\CurrentVersion\Lxss` first and falls back to bounded wildcard lookups.
+- Fixed mojibake output. PowerShell now emits UTF-8, and external tools are captured with byte-level encoding detection (wsl.exe is UTF-16LE, netsh/powercfg are the OEM codepage, curl is UTF-8) instead of assuming UTF-16 for everything.
+- Rebuilt the `issue` symptom router on multi-character keywords. The old single-character matching sent "电脑最近变卡了" to the battery check (电), "打印机不能用" to the startup list (开) and "保存一下现在电脑的状态" to the browser check (存). The chosen route and matched keyword are now printed, and an unmatched prompt gets an honest generic triage instead of a wrong route.
+- Added `-Mode smart` (physical disk / volume health, with an explicit note that SMART counters need elevation), `-Mode files` (largest files under a path, `-MinSizeMB`) and `-Mode self-test` (one command that verifies the safety contract and exits non-zero on failure).
+- Added `-Deep` disk candidates and many more high-yield locations: crash dumps, Windows Error Reporting, Recycle Bin, `Windows.old`, update download and Delivery Optimization caches, system logs, npm/pip/pnpm/Yarn/NuGet/Gradle/Maven caches, `.cache`, `.ollama`, Playwright, JetBrains, `ProgramData\Package Cache`, Discord. Browser caches are measured for every profile, not just `Default`.
+- Scans are bounded instead of unbounded: 20000 files and 6s per folder, 45s per section, junctions/symlinks are never followed, and every number is labelled `full`/`sampled`/`partial`/`missing`. `vscode` dropped from ~35s, `wsl` from ~17s, `health` from ~23s (measurements are now collected once per run).
+- `-Format json` is no longer silently ignored: every mode returns JSON, either natively or as `sections` derived from the rendered text. Added native JSON for `wsl`, `events`, `net-test`, `dev` and `network`.
+- `events` no longer floods the caller with full event messages: messages are collapsed to one line, capped, and summarised by provider + event id.
+- Health score gained a `security` component (Defender real-time state, weight 5) and folds unhealthy physical disks into `stability`; "weakest component" became "biggest lever" (weight x deficit), so a 5-point component no longer outranks a 15-point one.
+- Baselines are schema v2 and record enabled non-Microsoft scheduled tasks; `compare` diffs them and says so honestly when an older baseline predates the field. `startup` mode lists those tasks too.
+- `network` now reports the WinINET system proxy (what browsers actually use) alongside WinHTTP, plus DNS servers; `net-test` classifies the failure (dns/timeout/tls/proxy/4xx/5xx/connect) and retries with a ranged GET when a server rejects HEAD.
+- `system` no longer calls `Get-ComputerInfo` (~8s); it reads targeted CIM plus the registry build/display version.
+- `repair-check` adds the read-only `DISM /AnalyzeComponentStore` route and reports the WinSxS size.
+- The script is now UTF-8 with BOM (required for Windows PowerShell 5.1 to read non-ASCII literals). CI checks the BOM, the docs-to-script mode list, JSON for every mode, router regressions, and that `Remove-Item` only appears inside the allowed functions (AST-based).
+
 ## 0.2.3 - 2026-09-19
 
 - Added `references/known-folders.md`: a curated folder knowledge base (what each common Windows folder is, its risk level, whether/how it can be cleaned, and what regenerates afterwards), including a verified case for Windows-update staging leftovers (hash-named roots containing .cab/.psf/.msu). Unmatched paths follow an explicit unknown-folder triage flow instead of guessed purposes. SKILL.md routes folder-explanation questions through it.

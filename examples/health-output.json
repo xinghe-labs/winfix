@@ -1,27 +1,28 @@
 {
   "mode": "health",
-  "generated_at": "2026-09-19T12:15:38",
+  "version": "0.3.0",
+  "generated_at": "2026-10-12T17:59:12",
   "score": {
-    "total": 34,
+    "total": 32,
     "pending_reboot": true,
     "components": [
       {
         "key": "disk",
         "weight": 30,
-        "score": 33,
-        "measured": "min drive free 11.6%"
+        "score": 38,
+        "measured": "min drive free 12.7%"
       },
       {
         "key": "memory",
         "weight": 25,
-        "score": 63,
-        "measured": "memory used 72.9%"
+        "score": 58,
+        "measured": "memory used 74.6%"
       },
       {
         "key": "stability",
         "weight": 15,
         "score": 0,
-        "measured": "22 critical/error events in 3d; 0 problem devices"
+        "measured": "50 critical/error events in 3d; 0 problem devices; 0 unhealthy disks"
       },
       {
         "key": "startup",
@@ -33,54 +34,54 @@
         "key": "updates",
         "weight": 5,
         "score": 100,
-        "measured": "last hotfix 5 days ago"
+        "measured": "last hotfix 13 days ago"
+      },
+      {
+        "key": "security",
+        "weight": 5,
+        "score": 0,
+        "measured": "Defender real-time off"
       }
     ],
     "note": "Heuristic score from live measurements; unavailable components are excluded and the remaining weights renormalized. Not a benchmark."
   },
   "summary": {
-    "computer": "Q",
-    "uptime_days": 3.99,
-    "memory_used_percent": 73.1,
+    "computer": "EXAMPLE-PC",
+    "uptime_days": 1.36,
+    "memory_used_percent": 74.6,
     "critical_or_error_events_last_3_days": 20,
     "problem_devices": 0,
     "defender_realtime": false,
     "drive_status": [
       {
         "device": "C:",
-        "free_percent": 11.6,
+        "free_percent": 19.4,
         "status": "watch"
       },
       {
         "device": "D:",
-        "free_percent": 21.5,
-        "status": "ok"
-      },
-      {
-        "device": "E:",
-        "free_percent": 25.8,
-        "status": "ok"
-      },
-      {
-        "device": "F:",
-        "free_percent": 42.1,
-        "status": "ok"
-      },
-      {
-        "device": "G:",
-        "free_percent": 18.1,
+        "free_percent": 12.7,
         "status": "watch"
+      }
+    ],
+    "physical_disks": [
+      {
+        "name": "Example NVMe SSD",
+        "media": "SSD",
+        "health": "Healthy",
+        "operational": "OK",
+        "size_bytes": 512110190592
       }
     ]
   },
   "findings": [
-    "One or more drives are low or should be watched.",
+    "At least one drive is below 20% free; worth watching.",
     "Recent critical/error system events exist.",
     "Defender real-time protection is off.",
     "A reboot is pending; some fixes stay incomplete until then."
   ],
   "recommended_actions": [
-    "Use the route matching the strongest finding: disk, memory, events, devices, or security.",
+    "Use the route matching the strongest finding: disk, memory, events, smart, devices, or security.",
     "Do not run repair commands before reviewing evidence and impact."
   ]
 }

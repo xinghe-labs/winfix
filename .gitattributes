@@ -1,0 +1,5 @@
+# The PowerShell script is stored with LF in the repository and checked out
+# with CRLF, and it carries a UTF-8 BOM on purpose: Windows PowerShell 5.1 uses
+# the BOM to read the non-ASCII keyword literals in the symptom router
+# correctly. The BOM is file content, so it survives either way; CI checks it.
+*.ps1 text eol=crlf

@@ -22,12 +22,12 @@ Use this skill for Windows machine care where local state matters. The user may 
 
 ## Quick Workflow
 
-1. Identify the task category: disk, performance, memory/process, browser, app cache, developer environment, network/proxy, update/driver/device, audio/display/print, security, crash logs, or software leftovers.
-2. Run a read-only inspection first. Prefer the bundled script (in the
-   examples, `<skill-root>` is where winfix is installed, e.g.
-   `$env:USERPROFILE` + `\.agents\skills\winfix` for Codex or
-   `$env:USERPROFILE` + `\.claude\skills\winfix` for Claude Code; the
-   `npx skills add` installer places it automatically):
+1. Identify the task category: disk, performance, memory/process, browser, app cache, developer environment, network/proxy, update/driver/device, audio/display/print, security, disk health, crash logs, or software leftovers.
+2. Run a read-only inspection first. `<skill-root>` is where winfix is installed —
+   `$env:USERPROFILE\.agents\skills\winfix` for hosts that read the shared
+   `.agents` directory (ZCode, Codex, Claude Code, and others), or wherever the
+   skill directory that contains this `SKILL.md` lives. If the path is unknown,
+   locate the directory containing `scripts\inspect_windows.ps1`.
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode overview
@@ -39,37 +39,52 @@ For a broad health check before narrowing:
 powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode health
 ```
 
-Prefer JSON when the next step needs structured reasoning or comparison:
+Prefer JSON when the next step needs structured reasoning or comparison. Every
+mode supports it; core modes emit native JSON and the rest emit a `sections`
+object, so `-Format json` is never silently ignored:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode health -Format json
 ```
+
+In JSON mode stderr stays empty on purpose, so `2>&1` cannot corrupt the payload.
 
 3. Summarize findings with sizes, paths, and risk levels.
 4. Propose cleanup actions grouped by risk.
 5. Only clean after the user asks to proceed or already requested cleanup directly.
 6. Verify by rerunning the relevant inspection and comparing before/after.
 
-For vague symptom prompts, use `-Mode issue`:
+For vague symptom prompts, `-Mode issue` picks a route from multi-character
+keywords and prints which route and keyword it matched. Prefer an explicit mode
+when you already know the category:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode issue -Issue "用户原话"
+```
+
+Before trusting the safety contract, or after upgrading the skill, run the
+read-only self-test (it exits non-zero if any invariant fails):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode self-test
 ```
 
 ## Symptom Router
 
 | User says | Inspect with | First answer should include |
 |---|---|---|
-| 给电脑打个分、健康检查 | `-Mode health` | health score, weakest component with evidence |
-| 电脑最近变卡了、和之前不一样 | `-Mode compare` (fall back to `-Mode baseline` if none exists) | drive deltas, startup added/removed, service changes |
+| 给电脑打个分、健康检查 | `-Mode health` | health score, biggest lever with evidence, disk health, findings |
+| 电脑最近变卡了、和之前不一样 | `-Mode compare` (fall back to `-Mode baseline` if none exists) | drive deltas, startup and scheduled-task added/removed, service changes |
 | C 盘空间不够、哪些可以清理、电脑变满 | `-Mode disk`, then `-Mode large` if needed | top candidates, risk level, expected reclaimed space |
 | D 盘、某个目录哪的文件大 | `-Mode large -Path <目录>` | top folders under that path, honest sampled sizes |
+| 哪个文件最大、删不掉的大文件 | `-Mode files -Path <目录>` (可选 `-MinSizeMB`) | largest files with size and modification date |
+| 回收站/临时文件占了多少 | `-Mode disk` (含回收站、崩溃转储、错误报告) | top candidates, risk level, expected reclaimed space |
 | Chrome/Edge 内存高、浏览器卡 | `-Mode chrome`, optionally `-Mode memory` | process count, memory total/top process, cache/profile risk |
 | VS Code 点不了、WebView 报错、插件问题 | `-Mode vscode` | Code processes, cache folders, extension size, whether Code must be closed |
 | 微信/企业微信文件太大 | `-Mode wechat` | distinguish received files from cache; ask before deleting |
 | 安卓/Flutter/Java/adb 环境能不能用 | `-Mode android` and `-Mode dev` | readiness verdict and exact missing tools/env vars |
-| 代理、网络、API 连不上 | `-Mode network` | env proxies, WinHTTP proxy, test endpoint result |
-| 某网站/API/下载地址打不开 | `-Mode net-test -Target <url-or-host>` | DNS, proxy state, HTTP headers/errors |
+| 代理、网络、API 连不上 | `-Mode network` | env proxies, WinINET system proxy, WinHTTP proxy, DNS servers |
+| 某网站/API/下载地址打不开 | `-Mode net-test -Target <url-or-host>` | DNS, proxy state, HTTP status, and a failure classification (dns/timeout/tls/proxy/4xx/5xx/connect) |
 | 某个软件卡、闪退、打不开 | `-Mode app -ProcessName <name>` plus `-Mode events` if needed | matching processes and recent app errors |
 | WSL/Ubuntu/Linux 占空间或坏了 | `-Mode wsl` | distro list, vhdx virtual disk sizes, deletion/export warning |
 | Docker/镜像/容器占空间 | `-Mode docker` | Docker availability, `docker system df`, volume warning |
@@ -83,6 +98,8 @@ powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.p
 | 病毒、防火墙、Defender | `-Mode security` | Defender and firewall status |
 | 电池、睡眠、耗电、无法休眠 | `-Mode power` | battery, active power plan, sleep states |
 | 系统文件损坏、需要修复 | `-Mode repair-check` | read-only repair commands and admin boundary |
+| 硬盘是不是要坏了、SMART、坏道 | `-Mode smart` | disk/volume health, SMART counters (or the honest note that they need elevation) |
+| 这个 skill 安全吗、自己验证一下 | `-Mode self-test` | PASS/FAIL for every safety invariant, non-zero exit on failure |
 | 不知道哪里占空间 | `-Mode overview`, then `-Mode large` | broad triage and next narrow scan |
 
 ## Task Routes
@@ -91,19 +108,27 @@ powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.p
 
 Check:
 - drive free space
-- largest user folders
-- `%TEMP%`, `C:\Windows\Temp`
-- browser caches
-- package caches: npm, pip, pnpm, yarn, Gradle, Maven
-- VM/runtime bundles: Docker, WSL, Android emulator, large app local data
+- largest user folders and the system root breakdown (`C:\Windows`, `Program Files`, `pagefile`/`hiberfil`)
+- `%TEMP%`, `%LOCALAPPDATA%\Temp`, `C:\Windows\Temp`
+- crash dumps, Windows Error Reporting, Recycle Bin, `Windows.old`
+- update leftovers: `SoftwareDistribution\Download`, Delivery Optimization
+- browser caches (every profile, not just `Default`)
+- package caches: npm, pip, pnpm, Yarn, NuGet, Gradle, Maven
+- VM/runtime bundles: Docker, WSL, Android SDK/AVD, `%LOCALAPPDATA%\Packages`
+- `-Deep` adds the heavier/rarer tier (`.cache`, `.ollama`, Visual Studio, JetBrains, Playwright, `ProgramData\Package Cache`)
 
 Use:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode disk
+powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode disk -Deep
 ```
 
-Report top candidates; do not delete from `Downloads`, `Desktop`, `Documents`, or chat file folders without explicit user approval.
+Every candidate row is `size | risk | what | full path`, and each number is
+labelled `full`, `sampled` (hit the 20000-file cap), `partial` (hit the time
+budget) or `missing` — never present a `sampled`/`partial` number as an exact
+total. Report top candidates; do not delete from `Downloads`, `Desktop`,
+`Documents`, or chat file folders without explicit user approval.
 
 If the user asks to clean immediately, low-risk temp cleanup uses a
 preview-then-apply contract enforced by the script itself:
@@ -117,6 +142,13 @@ powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.p
 ```
 
 Then rerun `-Mode disk`.
+
+The deletion roots are an allowlist: `%LOCALAPPDATA%\Temp`, `C:\Windows\Temp`,
+and a redirected `%TEMP%`/`%TMP%` whose leaf name is `temp` or `tmp` (so a machine
+that moved its temp directory off C: still works, while a broken `TEMP=C:\` is
+refused). Drive roots, `C:\Windows`, and profile roots are always refused.
+Junctions and symlinks inside a temp root are never deleted, and the parent is
+re-checked immediately before each delete.
 
 ### Chrome High Memory
 
@@ -262,12 +294,50 @@ If diagnostics point to physical failure, overheating, swollen battery, disk SMA
 
 For WSL, never run `wsl --unregister` unless the user explicitly confirms the distro name and accepts that Linux files will be deleted. For Docker, explain that volumes can contain databases and project state.
 
+Virtual disks are located from `HKCU:\Software\Microsoft\Windows\CurrentVersion\Lxss`
+(authoritative for distros imported to a custom path such as `D:\WSL\Ubuntu`),
+with bounded wildcard lookups as a fallback. A vhdx only grows; never delete one
+to "free space" — compact it after `wsl --shutdown` and back it up first.
+
 Use:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode wsl
 powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode docker
 ```
+
+### Disk Health (SMART)
+
+Use this when the user asks whether a disk is dying, mentions bad sectors, or when `health` reports an unhealthy disk:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode smart
+```
+
+Without elevation Windows exposes health/operational state but usually not the
+SMART counters (temperature, wear, error counts). Say that explicitly instead of
+implying the disk is fine. If a disk reports non-Healthy, tell the user to back
+up before any repair attempt.
+
+### Big Files
+
+```powershell
+powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode files
+powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode files -Path "D:\Projects" -MinSizeMB 200
+```
+
+### Self-Test (verifying this skill)
+
+When the user asks whether this skill is safe to run, run:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode self-test
+```
+
+It asserts the temp-root allowlist, the credential redaction, the 24h skip, the
+junction exclusion, the baseline location, the router regressions and the
+version/CHANGELOG match; it exits non-zero if anything fails. The only thing it
+deletes is its own sandbox under `%TEMP%`.
 
 ## Health Score
 
@@ -278,26 +348,31 @@ component reported separately:
 |---|---|---|
 | disk | 30 | lowest drive free percent (≥25% → 100, ≤5% → 0) |
 | memory | 25 | used percent (≤60% → 100, ≥95% → 0) |
-| stability | 15 | critical/error events in 3d and problem devices |
+| stability | 15 | critical/error events in 3d, problem devices, and non-Healthy physical disks (-25 each) |
 | boot | 15 | average real boot duration of the last 3 boots, when the Diagnostics-Performance log exists |
 | startup | 10 | enabled startup item count (≤8 → 100, ≥28 → 0) |
 | updates | 5 | days since last hotfix (≤30 → 100, ≥120 → 0) |
+| security | 5 | Defender real-time state (on → 100, AV on but real-time off → 40, off → 0) |
 
 A pending reboot subtracts 10. When a data source is unavailable, its
 component is excluded and the remaining weights renormalized — the score
-never invents numbers. Always report the weakest component together with its
-measured evidence, and present the score as a heuristic, not a benchmark.
+never invents numbers. The output names the **biggest lever** (largest
+`weight × deficit`), not the lowest score, so a 5-point component cannot
+outrank a 15-point one. Always report that component together with its measured
+evidence, and present the score as a heuristic, not a benchmark.
 
 ## Baseline And Compare
 
-`-Mode baseline` snapshots drives, memory, startup items, auto-start-but-
-stopped services, and the pending-reboot flag into `~\.winfix\baselines\`
-(newest 20 kept; this is the only location the script ever writes).
+`-Mode baseline` snapshots drives, memory, startup items, enabled non-Microsoft
+scheduled tasks, auto-start-but-stopped services, and the pending-reboot flag
+into `~\.winfix\baselines\` (newest 20 kept; this is the only place the script
+writes, apart from its own self-test sandbox).
 `-Mode compare` diffs the current state against the newest baseline (or
 `-BaselinePath <file>`):
 
 - per-drive free-space delta in bytes
 - startup items added/removed by name and location
+- scheduled tasks added/removed (baseline schema v2; an older baseline says so instead of faking a diff)
 - auto-start-but-stopped service count change
 - pending-reboot flag
 
@@ -309,7 +384,7 @@ a comparison.
 
 | Level | Examples | Default action |
 |---|---|---|
-| Low | temp files, old logs, browser HTTP cache, package download cache | Can clean after user asks |
+| Low | temp files, old logs, browser HTTP cache, crash dumps, error reports, package download cache | Can clean after user asks |
 | Medium | app caches, old build outputs, Docker unused data, Android emulator images | Explain impact first |
 | High | Downloads, Desktop, Documents, WeChat received files, browser profile, SSH/API keys, source repos | Ask for explicit path-level approval |
 | Admin | Windows component store, system restore, feature removal, DISM, WSL feature disable | Explain admin requirement and risk |
@@ -364,16 +439,46 @@ For command output, relay the important lines because the user may not see termi
 - If the fix changes drivers, services, startup entries, firewall, Defender, registry, Windows Update components, boot settings, BitLocker, partitions, or power firmware settings, ask for explicit confirmation and prefer a restore point/backup.
 - Redaction is enforced in output: proxy variables and echoed URLs have embedded credentials replaced with `***` before display. Never bypass Redact-SensitiveText when printing environment or URL data.
 - Baselines intentionally persist startup identity (name + location) only — never persist full command lines, which can embed keys.
-- The cleanup boundary is enforced mechanically, not by promise: `-Mode cleanup-temp` without `-Apply` only previews, its deletion path is restricted to the exact `%TEMP%` / `C:\Windows\Temp` roots, and it skips entries modified within 24 hours.
-- If admin rights are required, give exact commands and say they must be run in an elevated PowerShell.
-- If a scan times out, report partial findings and narrow the next scan instead of repeating the same broad scan.
+- The cleanup boundary is enforced mechanically, not by promise: `-Mode cleanup-temp` without `-Apply` only previews, its deletion roots come from an allowlist (`%LOCALAPPDATA%\Temp`, `C:\Windows\Temp`, plus a redirected `%TEMP%`/`%TMP%` whose leaf is `temp`/`tmp`), it skips entries modified within 24 hours, and it never deletes through a junction or symlink.
+- Scanning is bounded: 20000 files and 6s per folder, 45s per section, no traversal through reparse points. Report `sampled`/`partial` rows as floors, never as exact totals.
+- If a scan is cut off by the time budget, say so and narrow the next scan (or use `-Deep`) instead of repeating the same broad scan.
+
+## Known Limitations (say these out loud when they apply)
+
+- Localized tool output: the script decodes native command output by sniffing the
+  encoding, but a tool that insists on the console codepage can still come back
+  localized. Prefer structured fields over raw text when they exist.
+- SMART counters (temperature, wear, error counts) usually require an elevated
+  shell; without one, report the honest "not available" instead of a clean bill.
+- Defender status is unavailable when a third-party AV replaces Defender or when
+  policy blocks the cmdlet.
+- The Diagnostics-Performance log may be disabled; the `boot` component is then
+  dropped from the score rather than guessed.
+- `-Mode issue` is a best-effort keyword router. It prints the route and keyword it
+  matched; if the symptom text arrived mangled, choose an explicit mode instead.
+- Unknown folders are never assigned a guessed purpose; they are reported as
+  unknown and left alone.
+- Out of scope: physical repair, warranty service, data recovery, and
+  third-party account recovery.
+
+## Never Do (without explicit, specific user approval)
+
+- Delete anything outside the temp allowlist (including `Downloads`, `Desktop`,
+  `Documents`, chat files, browser profiles, SSH/API keys, source repos).
+- `wsl --unregister`, Docker volume prune, or `docker system prune -a --volumes`.
+- Driver removal, registry edits, service resets, firewall/Defender changes.
+- `sfc /scannow`, `DISM /RestoreHealth`, `chkdsk /f`, or `diskpart` on a live volume.
+- Disable BitLocker, change partitions, or touch boot/firmware settings.
 
 ## Common Mistakes
 
 - Mistaking cache cleanup for account/profile reset. Cache is usually safe; profile data is not.
-- Counting `%TEMP%` and `C:\Windows\Temp` twice when environment variables resolve unexpectedly.
+- Counting `%TEMP%` and `C:\Windows\Temp` twice when environment variables resolve unexpectedly (the script de-duplicates roots; do not re-add them by hand).
 - Scanning the whole drive recursively before checking known high-yield locations.
 - Deleting browser cookies or WeChat files under the label "cache".
+- Reading only the `Default` browser profile and missing the other profiles.
 - Reporting "cleaned" without rerunning size or process checks.
-- Publishing changes without running `quick_validate.py`, JSON smoke tests, and the safety eval prompts.
+- Treating a `sampled`/`partial` size as an exact total, or treating a clean read-only disk verdict as proof the disk is healthy (SMART counters need elevation).
+- Trusting `-Mode issue` blindly: it prints the route it chose, but if the symptom text arrives mangled, pick the explicit mode from the router table instead.
+- Publishing changes without running `-Mode self-test`, the JSON smoke tests, and the safety eval prompts.
 

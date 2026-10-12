@@ -1,24 +1,174 @@
 {
   "mode": "disk",
-  "generated_at": "2026-06-14T12:25:30",
+  "version": "0.3.0",
+  "generated_at": "2026-10-12T17:59:42",
+  "deep": false,
   "drives": [
     {
       "device": "C:",
-      "size_bytes": 213621141504,
-      "free_bytes": 30628515840,
-      "free_percent": 14.3,
+      "size_bytes": 213536206848,
+      "free_bytes": 41319137280,
+      "free_percent": 19.3,
+      "status": "watch"
+    },
+    {
+      "device": "D:",
+      "size_bytes": 296022437888,
+      "free_bytes": 37683429376,
+      "free_percent": 12.7,
       "status": "watch"
     }
   ],
   "candidates": [
     {
-      "path": "C:\\Users\\Example\\AppData\\Local\\Temp",
+      "path": "C:\\Users\\Example\\AppData\\Local\\Google\\Chrome\\User Data\\Profile 21\\Service Worker",
       "exists": true,
-      "bytes": 1003136086,
-      "size": "956.67 MB",
+      "bytes": 1106559238,
+      "size": "1.03 GB",
+      "files": 15239,
       "scan": "full",
-      "risk": "low"
+      "risk": "low",
+      "kind": "Chrome \u7f13\u5b58 (Profile 21)"
+    },
+    {
+      "path": "C:\\$Recycle.Bin",
+      "exists": true,
+      "bytes": 1031607326,
+      "size": "983.82 MB",
+      "files": 315,
+      "scan": "full",
+      "risk": "low",
+      "kind": "\u56de\u6536\u7ad9"
+    },
+    {
+      "path": "C:\\Users\\Example\\AppData\\Local\\Google\\Chrome\\User Data\\Profile 29\\Service Worker",
+      "exists": true,
+      "bytes": 667253533,
+      "size": "636.34 MB",
+      "files": 8033,
+      "scan": "full",
+      "risk": "low",
+      "kind": "Chrome \u7f13\u5b58 (Profile 29)"
+    },
+    {
+      "path": "C:\\Users\\Example\\AppData\\Local\\Google\\Chrome\\User Data\\Profile 22\\Service Worker",
+      "exists": true,
+      "bytes": 493426988,
+      "size": "470.57 MB",
+      "files": 6346,
+      "scan": "full",
+      "risk": "low",
+      "kind": "Chrome \u7f13\u5b58 (Profile 22)"
+    },
+    {
+      "path": "C:\\Users\\Example\\AppData\\Local\\Google\\Chrome\\User Data\\Profile 29\\Code Cache",
+      "exists": true,
+      "bytes": 438752099,
+      "size": "418.43 MB",
+      "files": 1768,
+      "scan": "full",
+      "risk": "low",
+      "kind": "Chrome \u7f13\u5b58 (Profile 29)"
+    },
+    {
+      "path": "C:\\Users\\Example\\AppData\\Local\\npm-cache",
+      "exists": true,
+      "bytes": 372360275,
+      "size": "355.11 MB",
+      "files": 9692,
+      "scan": "partial",
+      "risk": "low",
+      "kind": "npm \u5305\u7f13\u5b58"
+    },
+    {
+      "path": "D:\\AgentWork\\tmp",
+      "exists": true,
+      "bytes": 371617909,
+      "size": "354.40 MB",
+      "files": 6752,
+      "scan": "full",
+      "risk": "low",
+      "kind": "\u5f53\u524d\u7528\u6237\u4e34\u65f6\u76ee\u5f55 (%TEMP%)"
+    },
+    {
+      "path": "C:\\Users\\Example\\AppData\\Local\\Google\\Chrome\\User Data\\Profile 29\\Cache",
+      "exists": true,
+      "bytes": 290342523,
+      "size": "276.89 MB",
+      "files": 1070,
+      "scan": "full",
+      "risk": "low",
+      "kind": "Chrome \u7f13\u5b58 (Profile 29)"
+    },
+    {
+      "path": "C:\\Users\\Example\\AppData\\Local\\Google\\Chrome\\User Data\\Profile 18\\Cache",
+      "exists": true,
+      "bytes": 277152475,
+      "size": "264.31 MB",
+      "files": 1265,
+      "scan": "full",
+      "risk": "low",
+      "kind": "Chrome \u7f13\u5b58 (Profile 18)"
+    },
+    {
+      "path": "C:\\Users\\Example\\AppData\\Local\\Google\\Chrome\\User Data\\Profile 22\\Cache",
+      "exists": true,
+      "bytes": 272573771,
+      "size": "259.95 MB",
+      "files": 1012,
+      "scan": "full",
+      "risk": "low",
+      "kind": "Chrome \u7f13\u5b58 (Profile 22)"
+    },
+    {
+      "path": "C:\\Users\\Example\\AppData\\Local\\Google\\Chrome\\User Data\\Profile 21\\Cache",
+      "exists": true,
+      "bytes": 272429685,
+      "size": "259.81 MB",
+      "files": 1176,
+      "scan": "full",
+      "risk": "low",
+      "kind": "Chrome \u7f13\u5b58 (Profile 21)"
+    },
+    {
+      "path": "C:\\Users\\Example\\AppData\\Local\\Google\\Chrome\\User Data\\Profile 21\\Code Cache",
+      "exists": true,
+      "bytes": 263222882,
+      "size": "251.03 MB",
+      "files": 3286,
+      "scan": "full",
+      "risk": "low",
+      "kind": "Chrome \u7f13\u5b58 (Profile 21)"
+    },
+    {
+      "path": "C:\\Users\\Example\\AppData\\Local\\Google\\Chrome\\User Data\\Profile 18\\Code Cache",
+      "exists": true,
+      "bytes": 233204789,
+      "size": "222.40 MB",
+      "files": 1583,
+      "scan": "full",
+      "risk": "low",
+      "kind": "Chrome \u7f13\u5b58 (Profile 18)"
+    },
+    {
+      "path": "C:\\Users\\Example\\AppData\\Local\\Google\\Chrome\\User Data\\Profile 22\\Code Cache",
+      "exists": true,
+      "bytes": 216498993,
+      "size": "206.47 MB",
+      "files": 1252,
+      "scan": "full",
+      "risk": "low",
+      "kind": "Chrome \u7f13\u5b58 (Profile 22)"
+    },
+    {
+      "path": "C:\\Users\\Example\\AppData\\Local\\Microsoft\\Edge\\User Data\\Default\\Code Cache",
+      "exists": true,
+      "bytes": 204657066,
+      "size": "195.18 MB",
+      "files": 3417,
+      "scan": "full",
+      "risk": "low",
+      "kind": "Edge \u7f13\u5b58 (Default)"
     }
   ]
 }
-
