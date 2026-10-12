@@ -159,8 +159,11 @@ jobs:
         run: |
           # The sample outputs ship with a version field; a stale one makes the
           # repo look unmaintained. Failing here forces a regenerate on bump.
+          # NOTE: the regex must be single-quoted, otherwise PowerShell
+          # interpolates $WinfixVersion and the pattern silently matches the
+          # wrong thing (it matched the param block's 'overview' once).
           $src = [System.IO.File]::ReadAllText((Join-Path $PWD 'scripts/inspect_windows.ps1'))
-          $ver = ([regex]::Match($src, "\$WinfixVersion = '([^']+)'")).Groups[1].Value
+          $ver = [regex]::Match($src, '\$WinfixVersion = ''([^'']+)''').Groups[1].Value
           if (-not $ver) { throw 'cannot read the script version' }
           foreach ($f in @('examples/health-output.json', 'examples/disk-output.json')) {
             $ex = [System.IO.File]::ReadAllText((Join-Path $PWD $f)) | ConvertFrom-Json
