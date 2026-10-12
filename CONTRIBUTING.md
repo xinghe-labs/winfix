@@ -12,8 +12,10 @@
    降级跳过并如实标注，不要编造；每个大小都要标 `full`/`sampled`/`partial`/`missing`。
 3. **中文必须能正确输出**：文本模式输出 UTF-8；JSON 模式必须只输出 ASCII
    （非 ASCII 转 `\uXXXX`），否则父进程按 OEM 代码页解码会弄坏中文路径。
-3. **同步四处**：改能力时同步更新 `SKILL.md`（路由与契约）、`README.md`
-   （用户视角）、`CHANGELOG.md`（版本）、`evals/evals.json`（预期行为）。
+3. **同步五处**：改能力时同步更新 `SKILL.md`（路由与契约）、`README.md`
+   （用户视角）、`CHANGELOG.md`（版本）、`evals/evals.json`（预期行为）、
+   `examples/*.json`（示例输出，里面的 `version` 字段必须等于脚本版本，
+   CI 会校验，忘了就红）。
 4. **版本一致**：`scripts/inspect_windows.ps1` 的 `$WinfixVersion` 必须与
    `CHANGELOG.md` 顶部条目一致，`-Mode self-test` 和 CI 都会检查。
 5. **编码一致**：`scripts/inspect_windows.ps1` 必须保持 UTF-8 with BOM +

@@ -1,20 +1,20 @@
 {
   "mode": "disk",
-  "version": "0.3.1",
-  "generated_at": "2026-10-12T22:43:49",
+  "version": "0.3.2",
+  "generated_at": "2026-10-12T23:05:31",
   "deep": false,
   "drives": [
     {
       "device": "C:",
       "size_bytes": 213536206848,
-      "free_bytes": 43220963328,
+      "free_bytes": 43237888000,
       "free_percent": 20.2,
       "status": "ok"
     },
     {
       "device": "D:",
       "size_bytes": 296022437888,
-      "free_bytes": 36039196672,
+      "free_bytes": 36037697536,
       "free_percent": 12.2,
       "status": "watch"
     }
@@ -83,9 +83,9 @@
     {
       "path": "D:\\Temp",
       "exists": true,
-      "bytes": 380861084,
-      "size": "363.22 MB",
-      "files": 7720,
+      "bytes": 381571122,
+      "size": "363.89 MB",
+      "files": 7769,
       "scan": "full",
       "risk": "low",
       "kind": "\u5f53\u524d\u7528\u6237\u4e34\u65f6\u76ee\u5f55 (%TEMP%)"

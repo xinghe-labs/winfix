@@ -1,7 +1,7 @@
 {
   "mode": "health",
-  "version": "0.3.1",
-  "generated_at": "2026-10-12T22:43:49",
+  "version": "0.3.2",
+  "generated_at": "2026-10-12T23:05:31",
   "score": {
     "total": 38,
     "pending_reboot": true,
@@ -15,8 +15,8 @@
       {
         "key": "memory",
         "weight": 25,
-        "score": 85,
-        "measured": "memory used 65.1%"
+        "score": 84,
+        "measured": "memory used 65.5%"
       },
       {
         "key": "stability",
@@ -47,8 +47,8 @@
   },
   "summary": {
     "computer": "EXAMPLE-PC",
-    "uptime_days": 1.56,
-    "memory_used_percent": 65.1,
+    "uptime_days": 1.57,
+    "memory_used_percent": 65.5,
     "critical_or_error_events_last_3_days": 20,
     "problem_devices": 0,
     "defender_realtime": false,

@@ -154,6 +154,20 @@ jobs:
           }
           Write-Host "evals: $($evals.evals.Count) entries OK"
 
+      - name: Examples match the current version
+        shell: powershell
+        run: |
+          # The sample outputs ship with a version field; a stale one makes the
+          # repo look unmaintained. Failing here forces a regenerate on bump.
+          $src = [System.IO.File]::ReadAllText((Join-Path $PWD 'scripts/inspect_windows.ps1'))
+          $ver = ([regex]::Match($src, "\$WinfixVersion = '([^']+)'")).Groups[1].Value
+          if (-not $ver) { throw 'cannot read the script version' }
+          foreach ($f in @('examples/health-output.json', 'examples/disk-output.json')) {
+            $ex = [System.IO.File]::ReadAllText((Join-Path $PWD $f)) | ConvertFrom-Json
+            if ($ex.version -ne $ver) { throw "$f says version $($ex.version), script is $ver - regenerate the examples" }
+          }
+          Write-Host "examples: OK (version $ver)"
+
       - name: Lint report (PSScriptAnalyzer, non-blocking)
         shell: pwsh
         continue-on-error: true
