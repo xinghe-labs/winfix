@@ -15,7 +15,7 @@
   [string]$Format = 'text'
 )
 
-$WinfixVersion = '0.3.1'
+$WinfixVersion = '0.3.2'
 $ErrorActionPreference = 'SilentlyContinue'
 
 # Emit UTF-8. Windows PowerShell 5.1 otherwise writes the OEM codepage (cp936 on
@@ -1593,15 +1593,27 @@ function Show-Smart {
   'Note: SMART counters need an elevated shell; a clean read-only verdict is not proof that the disk is fine.'
 }
 
-function Show-MemoryRoute {
+function Show-ResourcesRoute {
+  # Covers both "内存占用高" and "笔记本发烫 / 风扇一直响": the first thing to
+  # check in either case is which process is actually burning the machine.
   $memory = Get-MemoryData
   [pscustomobject]@{
     Total = (Format-Bytes $memory.total_bytes)
     Free = (Format-Bytes $memory.free_bytes)
     UsedPercent = $memory.used_percent
   } | Format-List
-  '=== Top memory processes ==='
+  '=== Top processes by memory ==='
   Show-Memory | Format-Table -AutoSize
+  '=== Top processes by CPU time ==='
+  Get-Process -ErrorAction SilentlyContinue |
+    Where-Object { $_.CPU -gt 0 } |
+    Sort-Object CPU -Descending |
+    Select-Object -First 10 ProcessName, Id,
+      @{Name = 'CPUSeconds'; Expression = { [math]::Round($_.CPU, 1) } },
+      @{Name = 'Memory'; Expression = { Format-Bytes $_.WorkingSet64 } } |
+    Format-Table -AutoSize
+  'Note: CPU/GPU temperature and fan speed are not exposed by Windows without'
+  'vendor tools; if one process above dominates, that is usually the cause.'
 }
 
 function Show-BaselineHint {
@@ -1653,7 +1665,7 @@ function Show-CompareHint {
   if (-not $newest) {
     'No baseline exists, so a before/after comparison is impossible right now.'
     'Run -Mode baseline to snapshot the current state, then compare again in a few days.'
-    Show-MemoryRoute
+    Show-ResourcesRoute
     return
   }
   $diff = Compare-WithBaseline
@@ -1669,17 +1681,17 @@ function Get-IssueRouteTable {
     [pscustomobject]@{ name = 'baseline'; keywords = @('baseline', '快照', '保存状态', '保存一下', '保存当前', '电脑状态', '存一份', '记录当前', '对比'); render = { Show-BaselineHint } }
     [pscustomobject]@{ name = 'vscode'; keywords = @('vscode', 'vs code', 'code.exe', 'webview', '插件', '扩展'); render = { Show-VSCode } }
     [pscustomobject]@{ name = 'chrome'; keywords = @('chrome', 'edge', 'browser', '浏览器', '标签页', '网页'); render = { Show-Chrome } }
-    [pscustomobject]@{ name = 'memory'; keywords = @('内存', '占用高', '占用很高', '内存不足', '内存泄漏'); render = { Show-MemoryRoute } }
+    [pscustomobject]@{ name = 'resources'; keywords = @('内存', '占用高', '占用很高', '内存不足', '内存泄漏', '发烫', '风扇', '过热', '很热', '温度高'); render = { Show-ResourcesRoute } }
     [pscustomobject]@{ name = 'wechat'; keywords = @('wechat', '微信', '企业微信'); render = { Show-WeChat } }
     [pscustomobject]@{ name = 'android'; keywords = @('android', '安卓', 'adb', 'flutter', '模拟器', 'gradle', 'jdk'); render = { Show-Android } }
     [pscustomobject]@{ name = 'wsl'; keywords = @('wsl', 'ubuntu', 'linux', '子系统', '发行版'); render = { Show-WSL } }
     [pscustomobject]@{ name = 'docker'; keywords = @('docker', '容器', '镜像', 'volume'); render = { Show-Docker } }
-    [pscustomobject]@{ name = 'smart'; keywords = @('硬盘健康', 'smart', '坏道', '硬盘坏', '健康度', '磁盘检测'); render = { Show-Smart } }
-    [pscustomobject]@{ name = 'network'; keywords = @('proxy', '代理', 'vpn', '网络', '连不上网', '无法访问', '访问不了', 'dns', '网速', '超时'); render = { Show-Network } }
+    [pscustomobject]@{ name = 'smart'; keywords = @('硬盘健康', 'smart', '坏道', '硬盘坏', '磁盘坏', '要坏', '硬盘有问题', '硬盘异响', '健康度', '磁盘检测'); render = { Show-Smart } }
+    [pscustomobject]@{ name = 'network'; keywords = @('proxy', '代理', 'vpn', '网络', '网址', '网站', '连不上网', '无法访问', '访问不了', 'dns', '网速', '超时'); render = { Show-Network } }
     [pscustomobject]@{ name = 'disk'; keywords = @('disk', '空间', '清理', '缓存', '大文件', '盘满', '满了', '回收站', '垃圾', 'c盘', 'd盘', '瘦身'); render = { Show-DiskRoute } }
     [pscustomobject]@{ name = 'crash'; keywords = @('bsod', '蓝屏', '崩溃', '闪退', '自动重启', '卡死', '死机', 'kernel-power', '事件日志'); render = { Show-Events } }
     [pscustomobject]@{ name = 'slow'; keywords = @('变卡', '卡顿', '很卡', '好卡', '变慢', '慢了', '不流畅', '掉帧', '性能下降'); render = { Show-CompareHint } }
-    [pscustomobject]@{ name = 'driver'; keywords = @('driver', '驱动', '设备', 'usb', '识别不了', '感叹号'); render = { Show-Drivers } }
+    [pscustomobject]@{ name = 'driver'; keywords = @('driver', '驱动', '设备', 'usb', '鼠标', '键盘', '外设', '识别不了', '感叹号'); render = { Show-Drivers } }
     [pscustomobject]@{ name = 'display'; keywords = @('display', '屏幕', '黑屏', '分辨率', '外接屏', '显示器', '显卡', '花屏'); render = { Show-Display } }
     [pscustomobject]@{ name = 'audio'; keywords = @('audio', '声音', '没声音', '扬声器', '麦克风', '音频', '耳机'); render = { Show-Audio } }
     [pscustomobject]@{ name = 'printer'; keywords = @('printer', '打印机', '打印', 'spooler'); render = { Show-Printer } }
@@ -1903,6 +1915,16 @@ function Invoke-SelfTest {
   [void]$results.Add((New-SelfTestResult 'router sends the printer phrase to the printer route' ($printer.name -eq 'printer') $printer.name))
   $state = Resolve-IssueRoute '保存一下现在电脑的状态'
   [void]$results.Add((New-SelfTestResult 'router sends the save-state phrase to the baseline route' ($state.name -eq 'baseline') $state.name))
+  $dying = Resolve-IssueRoute '硬盘是不是要坏了'
+  [void]$results.Add((New-SelfTestResult 'router sends the failing-disk phrase to the smart route' ($dying.name -eq 'smart') $dying.name))
+  $space = Resolve-IssueRoute '硬盘空间不够'
+  [void]$results.Add((New-SelfTestResult 'a disk-space phrase still goes to the disk route' ($space.name -eq 'disk') $space.name))
+  $url = Resolve-IssueRoute '这个网址打不开'
+  [void]$results.Add((New-SelfTestResult 'router sends the URL phrase to the network route' ($url.name -eq 'network') $url.name))
+  $mouse = Resolve-IssueRoute '鼠标没反应'
+  [void]$results.Add((New-SelfTestResult 'router sends the mouse phrase to the driver route' ($mouse.name -eq 'driver') $mouse.name))
+  $heat = Resolve-IssueRoute '笔记本发烫'
+  [void]$results.Add((New-SelfTestResult 'router sends the heat phrase to the resources route' ($heat.name -eq 'resources') $heat.name))
   $short = @(Get-IssueRouteTable | ForEach-Object { $_.keywords | Where-Object { $_.Length -lt 2 } })
   [void]$results.Add((New-SelfTestResult 'no single-character router keywords' ($short.Count -eq 0) ($short -join ',')))
 

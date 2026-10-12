@@ -80,6 +80,9 @@ powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.p
 | D 盘、某个目录哪的文件大 | `-Mode large -Path <目录>` | top folders under that path, honest sampled sizes |
 | 哪个文件最大、删不掉的大文件 | `-Mode files -Path <目录>` (可选 `-MinSizeMB`) | largest files with size and modification date |
 | 回收站/临时文件占了多少 | `-Mode disk` (含回收站、崩溃转储、错误报告) | top candidates, risk level, expected reclaimed space |
+| 内存占用高、占用很高 | `-Mode memory` | 内存总量/占用率 + 按内存排序的进程，还有按 CPU 时间排序的前十 |
+| 笔记本发烫、风扇一直响、温度高 | `-Mode issue -Issue "用户原话"`（走 resources 路由） | 按内存和 CPU 时间排的进程列表；温度/转速需要厂商工具，脚本会直说拿不到 |
+| 鼠标/键盘没反应、外设不识别 | `-Mode devices` 或 `-Mode drivers` | 问题设备与错误码、USB 设备状态 |
 | Chrome/Edge 内存高、浏览器卡 | `-Mode chrome`, optionally `-Mode memory` | process count, memory total/top process, cache/profile risk |
 | VS Code 点不了、WebView 报错、插件问题 | `-Mode vscode` | Code processes, cache folders, extension size, whether Code must be closed |
 | 微信/企业微信文件太大 | `-Mode wechat` | distinguish received files from cache; ask before deleting |
@@ -100,6 +103,7 @@ powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.p
 | 电池、睡眠、耗电、无法休眠 | `-Mode power` | battery, active power plan, sleep states |
 | 系统文件损坏、需要修复 | `-Mode repair-check` | read-only repair commands and admin boundary |
 | 硬盘是不是要坏了、SMART、坏道 | `-Mode smart` | disk/volume health, SMART counters (or the honest note that they need elevation) |
+| 某个网址/网站打不开 | `-Mode net-test -Target <url-or-host>` 或 `-Mode network` | DNS、代理状态、HTTP 状态、故障分类 |
 | 这个 skill 安全吗、自己验证一下 | `-Mode self-test` | PASS/FAIL for every safety invariant, non-zero exit on failure |
 | 不知道哪里占空间 | `-Mode overview`, then `-Mode large` | broad triage and next narrow scan |
 

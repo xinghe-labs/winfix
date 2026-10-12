@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.2 - 2026-10-12
+
+- Symptom router: closed three gaps found by throwing 25 real Chinese phrasings at `-Mode issue`. "硬盘是不是要坏了" fell through to the generic triage instead of the disk-health route, "这个网址打不开" did not reach the network route, and "鼠标没反应" reached nothing at all. Keywords added: 要坏 / 硬盘有问题 / 硬盘异响 / 磁盘坏 (smart), 网址 / 网站 (network), 鼠标 / 键盘 / 外设 (driver).
+- New `resources` route (was `memory`) also covers heat and fan noise: "笔记本发烫" and "风扇一直响" now get the top processes by memory **and** by CPU time, plus an honest note that Windows does not expose temperature or fan speed without vendor tools. The old answer for those two phrases was a disk-space report, which was useless.
+- Self-test grew five more router assertions (28 total), including a guard that "硬盘空间不够" still goes to the disk route rather than the new disk-health keywords.
+
 ## 0.3.1 - 2026-10-12
 
 - `baseline` no longer churns history. A snapshot is now skipped when the newest baseline is younger than 15 minutes **and** nothing material changed (every drive within 200 MB, the same startup set, the same pending-reboot state). Before this, anything that called `baseline` a few times in a row — an agent doing a health check, a regression test — silently pushed real history out of the newest-20 window. `-Force` saves anyway, and the skipped response says exactly why and what to do next.
