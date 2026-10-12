@@ -75,6 +75,7 @@ powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.p
 |---|---|---|
 | 给电脑打个分、健康检查 | `-Mode health` | health score, biggest lever with evidence, disk health, findings |
 | 电脑最近变卡了、和之前不一样 | `-Mode compare` (fall back to `-Mode baseline` if none exists) | drive deltas, startup and scheduled-task added/removed, service changes |
+| 保存现在状态、做基线 | `-Mode baseline` (add `-Force` to override the duplicate check) | saved path, or an explicit "not saved because nothing changed" |
 | C 盘空间不够、哪些可以清理、电脑变满 | `-Mode disk`, then `-Mode large` if needed | top candidates, risk level, expected reclaimed space |
 | D 盘、某个目录哪的文件大 | `-Mode large -Path <目录>` | top folders under that path, honest sampled sizes |
 | 哪个文件最大、删不掉的大文件 | `-Mode files -Path <目录>` (可选 `-MinSizeMB`) | largest files with size and modification date |
@@ -367,6 +368,13 @@ evidence, and present the score as a heuristic, not a benchmark.
 scheduled tasks, auto-start-but-stopped services, and the pending-reboot flag
 into `~\.winfix\baselines\` (newest 20 kept; this is the only place the script
 writes, apart from its own self-test sandbox).
+
+To keep history meaningful it will **not** write a duplicate: if the newest
+baseline is younger than 15 minutes and nothing material changed (every drive
+within 200 MB, the same startup set, the same reboot state), it returns
+`saved: false` with the reason and the existing path. Use `-Force` to save
+anyway. A cleanup that freed real space always produces a new snapshot.
+
 `-Mode compare` diffs the current state against the newest baseline (or
 `-BaselinePath <file>`):
 

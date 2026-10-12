@@ -8,7 +8,7 @@ WinFix 是一个用于 Windows 电脑维护的 agent skill。你只需要描述�
 
 - **健康分**：一条命令给出 0-100 的机器健康分，七个组件各自打分并附实测证据（磁盘余量、内存压力、系统错误事件与问题设备、物理磁盘健康、开机耗时、启动项数量、更新新鲜度、Defender 实时防护），并直接点名"最该修的那一项"（按 权重 × 缺口 排序，而不是单纯看谁分数低）。数据不可用的组件自动剔除、权重重归一化，不装样子。
 - **磁盘健康**：`smart` 模式读物理磁盘/卷的 HealthStatus、OperationalStatus 和 SMART 计数器（计数器通常需要管理员，脚本会如实说明"没权限"而不是假装磁盘健康）。
-- **基线与对比**：它记得你的机器长什么样。`baseline` 存一份快照（含启用的非微软计划任务），之后任何时刻 `compare` 都能告诉你：这段时间哪个盘少了多少空间、多了哪些开机启动项和计划任务、异常服务数量变化。"感觉电脑变卡了"从此不再是玄学。
+- **基线与对比**：它记得你的机器长什么样。`baseline` 存一份快照（含启用的非微软计划任务），之后任何时刻 `compare` 都能告诉你：这段时间哪个盘少了多少空间、多了哪些开机启动项和计划任务、异常服务数量变化。"感觉电脑变卡了"从此不再是玄学。为了避免无意义的重复快照把历史冲掉，**15 分钟内且状态没实质变化（每个盘变动 < 200MB、启动项一致、重启状态一致）时不会重复保存**，会明确告诉你"没保存、因为没变"；确实想存就加 `-Force`。
 - **大文件定位**：`files` 模式按大小列出目录下的最大文件（含修改日期），补上"只知道占空间、不知道是哪个文件"的最后一公里。
 - **一条命令自证安全**：`self-test` 逐项断言安全契约（临时目录白名单、凭据脱敏、24 小时跳过、junction 不穿透、基线位置、路由回归、版本一致），任何一项失败就退出码非零。
 - **开机耗时分析**：从系统诊断日志读取最近几次真实开机时长，纳入健康分（日志不可用时自动跳过，不猜数）。
@@ -58,6 +58,7 @@ Chrome 内存占用很高
 ```powershell
 powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode health
 powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode baseline
+powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode baseline -Force
 powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode compare
 powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode disk -Format json
 powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode disk -Deep

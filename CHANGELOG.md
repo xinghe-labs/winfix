@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.1 - 2026-10-12
+
+- `baseline` no longer churns history. A snapshot is now skipped when the newest baseline is younger than 15 minutes **and** nothing material changed (every drive within 200 MB, the same startup set, the same pending-reboot state). Before this, anything that called `baseline` a few times in a row — an agent doing a health check, a regression test — silently pushed real history out of the newest-20 window. `-Force` saves anyway, and the skipped response says exactly why and what to do next.
+- `-Mode baseline` JSON now reports `saved: true|false`; when skipped it also returns `skipped_reason`, `existing_path`, `existing_created_at` and `hint` instead of pretending a snapshot was written.
+- Added `Get-NewestBaselineFile` and `Test-BaselineRedundant`; the three places that used to scan the baseline directory inline now share them.
+
 ## 0.3.0 - 2026-10-12
 
 - Fixed a bug that made `dev` / `android` useless: the helper's `$Args` parameter collided with PowerShell's automatic `$Args`, so no argument was ever passed (git printed its usage text as its "version", npm printed its command list, node/python printed nothing). Dev probes now report `status` (ok/missing/timeout/error), the resolved path and a readiness verdict, and every external command has a hard timeout.

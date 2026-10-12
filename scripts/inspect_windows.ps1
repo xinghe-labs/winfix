@@ -10,11 +10,12 @@
   [int]$MinSizeMB = 50,
   [switch]$Deep,
   [switch]$Apply,
+  [switch]$Force,
   [ValidateSet('text', 'json')]
   [string]$Format = 'text'
 )
 
-$WinfixVersion = '0.3.0'
+$WinfixVersion = '0.3.1'
 $ErrorActionPreference = 'SilentlyContinue'
 
 # Emit UTF-8. Windows PowerShell 5.1 otherwise writes the OEM codepage (cp936 on
@@ -27,6 +28,12 @@ $MaxFilesPerFolder = 20000   # hard cap of files counted per folder
 $FolderBudgetSeconds = 6     # per-folder wall-clock budget
 $SectionBudgetSeconds = 45   # per-section global wall-clock budget
 $NativeTimeoutSeconds = 20   # default timeout for external commands
+
+# Baseline anti-churn: a snapshot taken minutes ago with the same drives, the
+# same startup set and the same reboot state is worthless, but it still pushes
+# real history out of the newest-20 window. Save it only when something moved.
+$BaselineMinIntervalMinutes = 15
+$BaselineFreeSpaceToleranceBytes = 200MB
 
 $script:Deadline = $null
 $script:Cache = @{}
@@ -520,6 +527,33 @@ function Get-WinfixStateDir {
   return $dir
 }
 
+function Get-NewestBaselineFile {
+  $dir = Get-WinfixStateDir
+  $files = @(Get-ChildItem $dir -Filter 'baseline-*.json' -ErrorAction SilentlyContinue | Sort-Object Name -Descending)
+  if ($files.Count -eq 0) { return $null }
+  return $files[0]
+}
+
+function Test-BaselineRedundant([object]$Previous, [object]$Current) {
+  # A snapshot taken minutes ago with the same drives, the same startup set and
+  # the same reboot state adds nothing but churn: it pushes real history out of
+  # the newest-20 window. Saving is still allowed whenever something actually
+  # changed — for example right after a cleanup that freed several GB.
+  if (-not $Previous -or -not $Previous.created_at) { return $false }
+  try { $previousAt = [datetime]::Parse($Previous.created_at) } catch { return $false }
+  if (((Get-Date) - $previousAt).TotalMinutes -ge $BaselineMinIntervalMinutes) { return $false }
+  foreach ($drive in @($Current.drives)) {
+    $before = $Previous.drives | Where-Object { $_.device -eq $drive.device } | Select-Object -First 1
+    if (-not $before) { return $false }
+    if ([math]::Abs([int64]$drive.free_bytes - [int64]$before.free_bytes) -gt $BaselineFreeSpaceToleranceBytes) { return $false }
+  }
+  $beforeIds = @($Previous.startup | ForEach-Object { "$($_.location)|$($_.name)" } | Sort-Object)
+  $nowIds = @($Current.startup | ForEach-Object { "$($_.location)|$($_.name)" } | Sort-Object)
+  if (($beforeIds -join "`n") -ne ($nowIds -join "`n")) { return $false }
+  if ([bool]$Previous.pending_reboot -ne [bool]$Current.pending_reboot) { return $false }
+  return $true
+}
+
 function Get-BaselineData {
   $os = Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue
   [pscustomobject]@{
@@ -539,8 +573,25 @@ function Get-BaselineData {
   }
 }
 
-function Save-Baseline {
+function Save-Baseline([switch]$Force) {
   $data = Get-BaselineData
+  $newest = Get-NewestBaselineFile
+  if (-not $Force -and $newest) {
+    $previous = $null
+    try { $previous = Get-Content -LiteralPath $newest.FullName -Raw | ConvertFrom-Json } catch { $previous = $null }
+    if ($previous -and (Test-BaselineRedundant $previous $data)) {
+      $ageMinutes = [math]::Round(((Get-Date) - [datetime]::Parse($previous.created_at)).TotalMinutes, 1)
+      return [pscustomobject]@{
+        mode = 'baseline'
+        version = $WinfixVersion
+        saved = $false
+        skipped_reason = "an equivalent baseline was saved $ageMinutes minute(s) ago (within the ${BaselineMinIntervalMinutes}-minute window) and nothing material changed"
+        existing_path = $newest.FullName
+        existing_created_at = $previous.created_at
+        hint = 'Use -Force to save anyway, or re-run after a change that moved the numbers.'
+      }
+    }
+  }
   $dir = Get-WinfixStateDir
   $path = Join-Path $dir ("baseline-" + (Get-Date).ToString('yyyyMMdd-HHmmss') + ".json")
   $data | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $path -Encoding UTF8
@@ -549,6 +600,7 @@ function Save-Baseline {
   [pscustomobject]@{
     mode = 'baseline'
     version = $WinfixVersion
+    saved = $true
     saved_path = $path
     created_at = $data.created_at
     summary = [pscustomobject]@{
@@ -562,14 +614,13 @@ function Save-Baseline {
 }
 
 function Compare-WithBaseline([string]$Path) {
-  $dir = Get-WinfixStateDir
   if ($Path) {
     if (-not (Test-Path -LiteralPath $Path)) { return $null }
     $baselineFile = $Path
   } else {
-    $files = @(Get-ChildItem $dir -Filter 'baseline-*.json' -ErrorAction SilentlyContinue | Sort-Object Name -Descending)
-    if ($files.Count -eq 0) { return $null }
-    $baselineFile = $files[0].FullName
+    $newest = Get-NewestBaselineFile
+    if (-not $newest) { return $null }
+    $baselineFile = $newest.FullName
   }
   $base = Get-Content -LiteralPath $baselineFile -Raw | ConvertFrom-Json
   $now = Get-BaselineData
@@ -1554,12 +1605,11 @@ function Show-MemoryRoute {
 }
 
 function Show-BaselineHint {
-  $dir = Join-Path $env:USERPROFILE '.winfix\baselines'
-  $files = @(Get-ChildItem $dir -Filter 'baseline-*.json' -ErrorAction SilentlyContinue | Sort-Object Name -Descending)
-  if ($files.Count -eq 0) {
+  $newest = Get-NewestBaselineFile
+  if (-not $newest) {
     'No baseline exists yet. Run -Mode baseline now, then -Mode compare later.'
   } else {
-    "Newest baseline: $($files[0].FullName)"
+    "Newest baseline: $($newest.FullName)"
     'Run -Mode compare to diff the current state against it.'
   }
 }
@@ -1599,9 +1649,8 @@ function Show-CompareText([object]$diff) {
 }
 
 function Show-CompareHint {
-  $dir = Join-Path $env:USERPROFILE '.winfix\baselines'
-  $files = @(Get-ChildItem $dir -Filter 'baseline-*.json' -ErrorAction SilentlyContinue | Sort-Object Name -Descending)
-  if ($files.Count -eq 0) {
+  $newest = Get-NewestBaselineFile
+  if (-not $newest) {
     'No baseline exists, so a before/after comparison is impossible right now.'
     'Run -Mode baseline to snapshot the current state, then compare again in a few days.'
     Show-MemoryRoute
@@ -1857,6 +1906,29 @@ function Invoke-SelfTest {
   $short = @(Get-IssueRouteTable | ForEach-Object { $_.keywords | Where-Object { $_.Length -lt 2 } })
   [void]$results.Add((New-SelfTestResult 'no single-character router keywords' ($short.Count -eq 0) ($short -join ',')))
 
+  # Baseline anti-churn (pure function, no disk writes).
+  $prevRecent = [pscustomobject]@{
+    created_at = (Get-Date).AddMinutes(-2).ToString('s')
+    drives = @([pscustomobject]@{ device = 'C:'; free_bytes = [int64]1000000000 })
+    startup = @(); pending_reboot = $false
+  }
+  $prevOld = [pscustomobject]@{
+    created_at = (Get-Date).AddMinutes(-60).ToString('s')
+    drives = @([pscustomobject]@{ device = 'C:'; free_bytes = [int64]1000000000 })
+    startup = @(); pending_reboot = $false
+  }
+  $nowSame = [pscustomobject]@{
+    drives = @([pscustomobject]@{ device = 'C:'; free_bytes = [int64]1000000100 })
+    startup = @(); pending_reboot = $false
+  }
+  $nowChanged = [pscustomobject]@{
+    drives = @([pscustomobject]@{ device = 'C:'; free_bytes = [int64]6000000000 })
+    startup = @(); pending_reboot = $false
+  }
+  [void]$results.Add((New-SelfTestResult 'an identical snapshot inside the window is redundant' (Test-BaselineRedundant $prevRecent $nowSame) '2 min ago, +100 B'))
+  [void]$results.Add((New-SelfTestResult 'a recent snapshot with a 5 GB drive change is not redundant' (-not (Test-BaselineRedundant $prevRecent $nowChanged)) '2 min ago, +5 GB'))
+  [void]$results.Add((New-SelfTestResult 'a snapshot older than the window is not redundant' (-not (Test-BaselineRedundant $prevOld $nowSame)) '60 min ago'))
+
   $changelog = Join-Path (Split-Path -Parent $PSScriptRoot) 'CHANGELOG.md'
   if (Test-Path -LiteralPath $changelog) {
     $top = (Get-Content -LiteralPath $changelog -TotalCount 4) -join ' '
@@ -1896,8 +1968,14 @@ switch ($Mode) {
     Show-Health
   }
   'baseline' {
-    $result = Save-Baseline
+    $result = Save-Baseline -Force:$Force
     if ($Format -eq 'json') { Write-JsonPayload $result; break }
+    if (-not $result.saved) {
+      "Baseline NOT saved: $($result.skipped_reason)"
+      "Existing baseline: $($result.existing_path)"
+      $result.hint
+      break
+    }
     "Baseline saved: $($result.saved_path)"
     $result.summary.drives | Format-Table -AutoSize
     [pscustomobject]@{

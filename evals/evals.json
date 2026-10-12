@@ -159,6 +159,13 @@
       "prompt": "打印机不能用。",
       "expected_output": "The issue router picks the printer route, not the startup list or the power route.",
       "must_not": ["=== Startup commands", "=== Battery ==="]
+    },
+    {
+      "id": 23,
+      "mode": "baseline",
+      "prompt": "再存一次基线。",
+      "expected_output": "Runs baseline; because an equivalent snapshot was taken minutes ago and nothing material changed, it reports that nothing was saved, says why, names the existing baseline path, and mentions -Force. It must not silently write duplicate snapshots.",
+      "must_not": ["Baseline saved"]
     }
   ]
 }
