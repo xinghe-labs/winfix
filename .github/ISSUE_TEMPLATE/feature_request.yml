@@ -7,10 +7,14 @@ body:
     attributes:
       label: 你想解决什么问题？
       description: 描述场景，而不是直接描述功能
+    validations:
+      required: true
   - type: textarea
     id: idea
     attributes:
       label: 你期望的行为
+    validations:
+      required: true
   - type: checkboxes
     id: safety
     attributes:

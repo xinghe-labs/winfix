@@ -1,22 +1,22 @@
 {
   "mode": "health",
-  "version": "0.3.0",
-  "generated_at": "2026-10-12T17:59:12",
+  "version": "0.3.1",
+  "generated_at": "2026-10-12T22:43:49",
   "score": {
-    "total": 32,
+    "total": 38,
     "pending_reboot": true,
     "components": [
       {
         "key": "disk",
         "weight": 30,
-        "score": 38,
-        "measured": "min drive free 12.7%"
+        "score": 36,
+        "measured": "min drive free 12.2%"
       },
       {
         "key": "memory",
         "weight": 25,
-        "score": 58,
-        "measured": "memory used 74.6%"
+        "score": 85,
+        "measured": "memory used 65.1%"
       },
       {
         "key": "stability",
@@ -47,20 +47,20 @@
   },
   "summary": {
     "computer": "EXAMPLE-PC",
-    "uptime_days": 1.36,
-    "memory_used_percent": 74.6,
+    "uptime_days": 1.56,
+    "memory_used_percent": 65.1,
     "critical_or_error_events_last_3_days": 20,
     "problem_devices": 0,
     "defender_realtime": false,
     "drive_status": [
       {
         "device": "C:",
-        "free_percent": 19.4,
-        "status": "watch"
+        "free_percent": 20.2,
+        "status": "ok"
       },
       {
         "device": "D:",
-        "free_percent": 12.7,
+        "free_percent": 12.2,
         "status": "watch"
       }
     ],
@@ -75,7 +75,6 @@
     ]
   },
   "findings": [
-    "At least one drive is below 20% free; worth watching.",
     "Recent critical/error system events exist.",
     "Defender real-time protection is off.",
     "A reboot is pending; some fixes stay incomplete until then."

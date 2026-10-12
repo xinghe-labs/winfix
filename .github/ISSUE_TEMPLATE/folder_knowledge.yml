@@ -1,5 +1,5 @@
 name: 目录知识库贡献
-description: 查明了一个 unknown 目录的用途，把条目贡献给 known-folders.md
+description: 查明了一个 unknown 目录的用途，把条目贡献给 references/known-folders.md
 labels: [knowledge-base]
 body:
   - type: markdown

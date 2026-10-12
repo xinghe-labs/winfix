@@ -12,6 +12,8 @@ body:
     attributes:
       label: 现象描述
       description: 你让 agent 做了什么，它的回答哪里不对？
+    validations:
+      required: true
   - type: textarea
     id: diagnosis
     attributes:
@@ -23,6 +25,8 @@ body:
         ```
       placeholder: |
         powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode health -Format json
+    validations:
+      required: true
   - type: textarea
     id: env
     attributes:
