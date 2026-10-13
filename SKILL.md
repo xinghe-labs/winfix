@@ -377,6 +377,14 @@ never invents numbers. The output names the **biggest lever** (largest
 outrank a 15-point one. Always report that component together with its measured
 evidence, and present the score as a heuristic, not a benchmark.
 
+The `stability` component saturates quickly: the event penalty is
+`count × 8` against a capped query, so 13 or more error-level events in three
+days already floor it at 0. Ordinary Windows logs contain error-level entries
+from providers that are not faults (BitLocker 24641 and Ntfs 98 are common on
+healthy machines), so the component also reports its **top sources** and
+`-Mode events` prints the full provider/id breakdown. Read those sources out
+instead of presenting `stability 0` as "your machine is unstable".
+
 ## Baseline And Compare
 
 `-Mode baseline` snapshots drives, memory, startup items, enabled non-Microsoft

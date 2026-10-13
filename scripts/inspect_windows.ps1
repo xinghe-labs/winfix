@@ -15,7 +15,7 @@
   [string]$Format = 'text'
 )
 
-$WinfixVersion = '0.3.4'
+$WinfixVersion = '0.3.5'
 $ErrorActionPreference = 'SilentlyContinue'
 
 # Captured so the self-test can re-run this script in a child process and prove
@@ -338,6 +338,17 @@ function Get-RecentEvents([int]$Days = 3, [int]$Max = 50) {
   }
 }
 
+function Get-TopEventSources([object[]]$Events, [int]$Limit = 3) {
+  # The stability component is driven by a capped count, and ordinary Windows
+  # logs contain error-level entries from providers that are not faults
+  # (BitLocker 24641 and Ntfs 98 both dominate on the machine this was found
+  # on). Naming the sources keeps "0 stability" from reading as "your machine
+  # is unstable" without inventing a different scoring formula.
+  if (-not $Events -or $Events.Count -eq 0) { return @() }
+  return @($Events | Group-Object ProviderName | Sort-Object Count -Descending |
+    Select-Object -First $Limit | ForEach-Object { "$($_.Name) $($_.Count)" })
+}
+
 function Get-ProblemDevices {
   return Get-Cached 'problem-devices' {
     @(Get-CimInstance Win32_PnPEntity -ErrorAction SilentlyContinue | Where-Object { $_.ConfigManagerErrorCode -ne 0 })
@@ -574,6 +585,7 @@ function Get-HealthScore {
   $components += [pscustomobject]@{
     key = 'stability'; weight = 15; score = [int][math]::Max(0, 100 - $stabilityPenalty)
     measured = "$eventLabel critical/error events in 3d; $($problemDevices.Count) problem devices; $($diskHealth.unhealthy.Count) unhealthy disks"
+    sources = @(Get-TopEventSources $events)
   }
   if ($boot) {
     $avgS = [math]::Round((($boot | Measure-Object -Property total_ms -Average).Average) / 1000)
@@ -781,6 +793,10 @@ function Show-Health {
   $score.components | ForEach-Object {
     [pscustomobject]@{ Component = $_.key; Score = $_.score; Weight = $_.weight; Measured = $_.measured }
   } | Format-Table -AutoSize
+  $stability = $score.components | Where-Object { $_.key -eq 'stability' } | Select-Object -First 1
+  if ($stability -and @($stability.sources).Count -gt 0) {
+    "Top error sources: $(@($stability.sources) -join ', ') (counts inside the capped query, so floors; run -Mode events for the full list)."
+  }
   $worst = $score.components | Sort-Object { -($_.weight * (100 - $_.score)) } | Select-Object -First 1
   if ($worst) { "Biggest lever: $($worst.key) ($($worst.measured))" }
 

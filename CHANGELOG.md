@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.5 - 2026-10-13
+
+- `stability` now names its top event sources. The component is `count × 8` against a capped query, so it floors at 0 from 13 error-level events onward, and ordinary logs are full of error-level entries that are not faults - on the machine this was found on, the top sources were Service Control Manager (real service crashes), BitLocker-Driver 24641 and Ntfs 98 (both benign). `-Mode health` now prints `Top error sources: ...` under the table and the health JSON carries a `sources` array on that component, so `stability 0` can be explained instead of being read as "this machine is unstable". The scoring formula is unchanged - only the evidence was added, plus the saturation caveat in SKILL.md.
+
 ## 0.3.4 - 2026-10-13
 
 - `-Mode files` now labels a truncated list as a floor. Folder sizes have carried `full`/`sampled`/`partial`/`missing` labels for a while, but the file list did not: the bare `-Mode files` walks `%USERPROFILE`, hits the 45s section budget, and printed the top rows as if the walk had finished. On the machine this was found on it stopped after 358583 files. The output now ends with `partial: the 45 s budget stopped the scan after N files, so this list is a floor. Narrow it with -Path <folder>, or raise -MinSizeMB.` and the empty-result case says "in the part that was scanned" instead of implying the whole tree is clean. A completed walk prints no such line (verified both ways).

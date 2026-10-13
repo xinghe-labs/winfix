@@ -1,9 +1,9 @@
 {
   "mode": "health",
-  "version": "0.3.4",
-  "generated_at": "2026-10-13T13:23:46",
+  "version": "0.3.5",
+  "generated_at": "2026-10-13T13:40:09",
   "score": {
-    "total": 35,
+    "total": 27,
     "pending_reboot": true,
     "components": [
       {
@@ -15,14 +15,19 @@
       {
         "key": "memory",
         "weight": 25,
-        "score": 74,
-        "measured": "memory used 69%"
+        "score": 45,
+        "measured": "memory used 79.4%"
       },
       {
         "key": "stability",
         "weight": 15,
         "score": 0,
-        "measured": "50+ (capped) critical/error events in 3d; 0 problem devices; 0 unhealthy disks"
+        "measured": "50+ (capped) critical/error events in 3d; 0 problem devices; 0 unhealthy disks",
+        "sources": [
+          "Service Control Manager 23",
+          "Microsoft-Windows-BitLocker-Driver 10",
+          "Microsoft-Windows-Ntfs 5"
+        ]
       },
       {
         "key": "startup",
@@ -47,8 +52,8 @@
   },
   "summary": {
     "computer": "EXAMPLE-PC",
-    "uptime_days": 2.17,
-    "memory_used_percent": 69,
+    "uptime_days": 2.18,
+    "memory_used_percent": 79.4,
     "critical_or_error_events_last_3_days": 20,
     "critical_or_error_events_capped": true,
     "problem_devices": 0,
@@ -58,8 +63,8 @@
     "drive_status": [
       {
         "device": "C:",
-        "free_percent": 19.1,
-        "status": "watch"
+        "free_percent": 20.6,
+        "status": "ok"
       },
       {
         "device": "D:",
@@ -78,7 +83,6 @@
     ]
   },
   "findings": [
-    "At least one drive is below 20% free; worth watching.",
     "Recent critical/error system events exist.",
     "No active real-time protection: no third-party AV is registered and Defender real-time is off.",
     "A reboot is pending; some fixes stay incomplete until then."
