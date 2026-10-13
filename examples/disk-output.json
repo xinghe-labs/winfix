@@ -1,20 +1,20 @@
 {
   "mode": "disk",
-  "version": "0.3.3",
-  "generated_at": "2026-10-13T12:55:35",
+  "version": "0.3.4",
+  "generated_at": "2026-10-13T13:23:46",
   "deep": false,
   "drives": [
     {
       "device": "C:",
       "size_bytes": 213536206848,
-      "free_bytes": 41939623936,
-      "free_percent": 19.6,
+      "free_bytes": 40792219648,
+      "free_percent": 19.1,
       "status": "watch"
     },
     {
       "device": "D:",
       "size_bytes": 296022437888,
-      "free_bytes": 35886542848,
+      "free_bytes": 35915501568,
       "free_percent": 12.1,
       "status": "watch"
     }
@@ -23,9 +23,9 @@
     {
       "path": "C:\\Users\\Example\\AppData\\Local\\Google\\Chrome\\User Data\\Profile 21\\Service Worker",
       "exists": true,
-      "bytes": 1106563824,
+      "bytes": 1107128593,
       "size": "1.03 GB",
-      "files": 15237,
+      "files": 15252,
       "scan": "full",
       "risk": "low",
       "kind": "Chrome \u7f13\u5b58 (Profile 21)"
@@ -53,8 +53,8 @@
     {
       "path": "C:\\Users\\Example\\AppData\\Local\\Google\\Chrome\\User Data\\Profile 29\\Service Worker",
       "exists": true,
-      "bytes": 667263443,
-      "size": "636.35 MB",
+      "bytes": 667266607,
+      "size": "636.36 MB",
       "files": 8037,
       "scan": "full",
       "risk": "low",
@@ -73,9 +73,9 @@
     {
       "path": "C:\\Users\\Example\\AppData\\Local\\Google\\Chrome\\User Data\\Profile 29\\Code Cache",
       "exists": true,
-      "bytes": 452318091,
-      "size": "431.36 MB",
-      "files": 1912,
+      "bytes": 452953459,
+      "size": "431.97 MB",
+      "files": 1958,
       "scan": "full",
       "risk": "low",
       "kind": "Chrome \u7f13\u5b58 (Profile 29)"
@@ -83,9 +83,9 @@
     {
       "path": "D:\\Temp",
       "exists": true,
-      "bytes": 419334864,
-      "size": "399.91 MB",
-      "files": 7954,
+      "bytes": 420906171,
+      "size": "401.41 MB",
+      "files": 7995,
       "scan": "full",
       "risk": "low",
       "kind": "\u5f53\u524d\u7528\u6237\u4e34\u65f6\u76ee\u5f55 (%TEMP%)"
@@ -93,9 +93,9 @@
     {
       "path": "C:\\Users\\Example\\AppData\\Local\\Google\\Chrome\\User Data\\Profile 29\\Cache",
       "exists": true,
-      "bytes": 293228232,
-      "size": "279.64 MB",
-      "files": 1031,
+      "bytes": 299955431,
+      "size": "286.06 MB",
+      "files": 998,
       "scan": "full",
       "risk": "low",
       "kind": "Chrome \u7f13\u5b58 (Profile 29)"
@@ -133,9 +133,9 @@
     {
       "path": "C:\\Users\\Example\\AppData\\Local\\Google\\Chrome\\User Data\\Profile 21\\Cache",
       "exists": true,
-      "bytes": 268493707,
-      "size": "256.06 MB",
-      "files": 1282,
+      "bytes": 269958727,
+      "size": "257.45 MB",
+      "files": 1307,
       "scan": "full",
       "risk": "low",
       "kind": "Chrome \u7f13\u5b58 (Profile 21)"

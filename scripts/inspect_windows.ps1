@@ -15,7 +15,7 @@
   [string]$Format = 'text'
 )
 
-$WinfixVersion = '0.3.3'
+$WinfixVersion = '0.3.4'
 $ErrorActionPreference = 'SilentlyContinue'
 
 # Captured so the self-test can re-run this script in a child process and prove
@@ -1639,13 +1639,25 @@ function Show-LargeFiles {
     }
     if (Test-BudgetExpired) { break }
   }
+  $partial = Test-BudgetExpired
   Clear-SectionBudget
   $watch.Stop()
-  if ($found.Count -eq 0) { "No file >= $MinSizeMB MB found (scanned $scanned files)." }
-  else {
+  if ($found.Count -eq 0) {
+    if ($partial) {
+      "No file >= $MinSizeMB MB found in the part that was scanned ($scanned files); the scan hit the $SectionBudgetSeconds s budget, so this is not a verdict on the whole tree."
+    } else {
+      "No file >= $MinSizeMB MB found (scanned $scanned files)."
+    }
+  } else {
     $found | Sort-Object Bytes -Descending | Select-Object -First $Top | ForEach-Object {
       [pscustomobject]@{ Size = (Format-Bytes $_.Bytes); Modified = $_.Modified; Path = $_.Path }
     } | Format-Table -AutoSize
+  }
+  if ($partial) {
+    # Individual sizes are exact, but the *list* is a floor: the walk stopped
+    # early, so larger files may exist further down. Same discipline as the
+    # full/sampled/partial labels on folder sizes.
+    "partial: the $SectionBudgetSeconds s budget stopped the scan after $scanned files, so this list is a floor. Narrow it with -Path <folder>, or raise -MinSizeMB."
   }
   Write-Diag ("scanned {0} files in {1:N1}s" -f $scanned, $watch.Elapsed.TotalSeconds)
 }
@@ -2060,6 +2072,22 @@ function Invoke-SelfTest {
     [void]$results.Add((New-SelfTestResult 'Defender real-time on is scored as protected' (($protected.state -eq 'protected') -and ($protected.score -eq 100)) "state=$($protected.state) score=$($protected.score)"))
     $unknown = Get-SecurityPosture -Injected -DefenderStatus $null -AvProducts @()
     [void]$results.Add((New-SelfTestResult 'an unavailable Defender is excluded from the score, not scored 0' (($unknown.state -eq 'unavailable') -and ($null -eq $unknown.score)) "state=$($unknown.state) score=$($unknown.score)"))
+
+    # A file list cut off by the time budget is a floor, and must say so - the
+    # folder-size path already labels full/sampled/partial, and the two used to
+    # disagree. Budget forced to 0 so the truncation is deterministic.
+    $savedBudget = $SectionBudgetSeconds
+    $savedPath = $Path
+    $filesOut = ''
+    try {
+      $script:SectionBudgetSeconds = 0
+      $script:Path = $e2eTemp
+      $filesOut = (Show-LargeFiles | Out-String)
+    } finally {
+      $script:SectionBudgetSeconds = $savedBudget
+      $script:Path = $savedPath
+    }
+    [void]$results.Add((New-SelfTestResult 'a budget-truncated file list is labelled partial' ([bool]($filesOut -match 'partial')) 'floor, not a total'))
   } finally {
     Remove-Item -LiteralPath $sandbox -Recurse -Force -ErrorAction SilentlyContinue
   }

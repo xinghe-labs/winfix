@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.4 - 2026-10-13
+
+- `-Mode files` now labels a truncated list as a floor. Folder sizes have carried `full`/`sampled`/`partial`/`missing` labels for a while, but the file list did not: the bare `-Mode files` walks `%USERPROFILE`, hits the 45s section budget, and printed the top rows as if the walk had finished. On the machine this was found on it stopped after 358583 files. The output now ends with `partial: the 45 s budget stopped the scan after N files, so this list is a floor. Narrow it with -Path <folder>, or raise -MinSizeMB.` and the empty-result case says "in the part that was scanned" instead of implying the whole tree is clean. A completed walk prints no such line (verified both ways).
+- Self-test 38 -> 39 assertions: one forces the budget to 0 and asserts the `partial` label appears.
+- SKILL.md's Big Files section now leads with the `-Path` form and says what the bare form costs; the Common Mistakes list covers reading a `partial:` file list as complete.
+
 ## 0.3.3 - 2026-10-13
 
 - **The deletion contract is now proven end to end, not just planned.** Every previous self-test assertion checked `Get-TempCleanupPlan` — the list of what *would* be deleted. All 28 of them would still have passed if the dispatcher called the delete function unconditionally, which is exactly the promise users rely on ("preview only, nothing is deleted without `-Apply`"). Two new checks drive the real code paths: a child process runs `-Mode cleanup-temp` with its temp roots redirected into a sandbox, and the real apply function is then run against the same sandbox. Verified by mutation: removing the `if ($Apply)` guard in a copy makes the new assertion fail with `stale sandbox file still exists=False`.

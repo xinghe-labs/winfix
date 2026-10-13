@@ -1,9 +1,9 @@
 {
   "mode": "health",
-  "version": "0.3.3",
-  "generated_at": "2026-10-13T12:55:34",
+  "version": "0.3.4",
+  "generated_at": "2026-10-13T13:23:46",
   "score": {
-    "total": 20,
+    "total": 35,
     "pending_reboot": true,
     "components": [
       {
@@ -15,8 +15,8 @@
       {
         "key": "memory",
         "weight": 25,
-        "score": 17,
-        "measured": "memory used 89%"
+        "score": 74,
+        "measured": "memory used 69%"
       },
       {
         "key": "stability",
@@ -47,8 +47,8 @@
   },
   "summary": {
     "computer": "EXAMPLE-PC",
-    "uptime_days": 2.15,
-    "memory_used_percent": 89,
+    "uptime_days": 2.17,
+    "memory_used_percent": 69,
     "critical_or_error_events_last_3_days": 20,
     "critical_or_error_events_capped": true,
     "problem_devices": 0,
@@ -58,7 +58,7 @@
     "drive_status": [
       {
         "device": "C:",
-        "free_percent": 19.7,
+        "free_percent": 19.1,
         "status": "watch"
       },
       {
@@ -79,7 +79,6 @@
   },
   "findings": [
     "At least one drive is below 20% free; worth watching.",
-    "Memory usage is high.",
     "Recent critical/error system events exist.",
     "No active real-time protection: no third-party AV is registered and Defender real-time is off.",
     "A reboot is pending; some fixes stay incomplete until then."

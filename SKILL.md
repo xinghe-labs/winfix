@@ -327,9 +327,15 @@ up before any repair attempt.
 ### Big Files
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode files
 powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode files -Path "D:\Projects" -MinSizeMB 200
+powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.ps1" -Mode files
 ```
+
+Prefer the `-Path` form. Without it the walk starts at `%USERPROFILE`, which
+typically hits the 45s section budget; the output then ends with a `partial:`
+line, and that list is a floor — say so, and narrow with `-Path` (or run
+`-Mode large` first to see which folder is worth scanning) instead of presenting
+it as the definitive largest-files list.
 
 ### Self-Test (verifying this skill)
 
@@ -498,7 +504,9 @@ For command output, relay the important lines because the user may not see termi
 - Deleting browser cookies or WeChat files under the label "cache".
 - Reading only the `Default` browser profile and missing the other profiles.
 - Reporting "cleaned" without rerunning size or process checks.
-- Treating a `sampled`/`partial` size as an exact total, or treating a clean read-only disk verdict as proof the disk is healthy (SMART counters need elevation).
+- Treating a `sampled`/`partial` size as an exact total, treating a `-Mode files`
+  list that ended with `partial:` as complete, or treating a clean read-only disk
+  verdict as proof the disk is healthy (SMART counters need elevation).
 - Trusting `-Mode issue` blindly: it prints the route it chose, but if the symptom text arrives mangled, pick the explicit mode from the router table instead.
 - Publishing changes without running `-Mode self-test`, the JSON smoke tests, and the safety eval prompts.
 
