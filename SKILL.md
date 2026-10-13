@@ -99,7 +99,7 @@ powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.p
 | 没声音、麦克风、扬声器问题 | `-Mode audio` | audio devices and audio service status |
 | 黑屏、分辨率、显卡、外接屏 | `-Mode display` | GPU driver, monitor status |
 | 打印机不能打印 | `-Mode printer` | printer state and spooler status |
-| 病毒、防火墙、Defender | `-Mode security` | Defender and firewall status |
+| 病毒、防火墙、Defender | `-Mode security` | Defender 运行模式、SecurityCenter2 里注册的杀软、防火墙配置，并给出四选一的结论（正常 / 第三方杀软接管 / passive 无替代 / 真没防护） |
 | 电池、睡眠、耗电、无法休眠 | `-Mode power` | battery, active power plan, sleep states |
 | 系统文件损坏、需要修复 | `-Mode repair-check` | read-only repair commands and admin boundary |
 | 硬盘是不是要坏了、SMART、坏道 | `-Mode smart` | disk/volume health, SMART counters (or the honest note that they need elevation) |
@@ -340,8 +340,13 @@ powershell -ExecutionPolicy Bypass -File "<skill-root>\scripts\inspect_windows.p
 ```
 
 It asserts the temp-root allowlist, the credential redaction, the 24h skip, the
-junction exclusion, the baseline location, the router regressions and the
-version/CHANGELOG match; it exits non-zero if anything fails. The only thing it
+junction exclusion, the baseline location, the router regressions, the security
+posture branches and the version/CHANGELOG match; it exits non-zero if anything
+fails. Five of those assertions are end-to-end rather than plan-level: a child
+process runs the real `cleanup-temp` dispatcher with its temp roots redirected
+into a sandbox to prove that a preview deletes nothing, and the real apply
+function is then run against the same sandbox to prove that stale entries go,
+recent ones stay, and a junction's target is untouched. The only thing it
 deletes is its own sandbox under `%TEMP%`.
 
 ## Health Score
@@ -353,11 +358,11 @@ component reported separately:
 |---|---|---|
 | disk | 30 | lowest drive free percent (≥25% → 100, ≤5% → 0) |
 | memory | 25 | used percent (≤60% → 100, ≥95% → 0) |
-| stability | 15 | critical/error events in 3d, problem devices, and non-Healthy physical disks (-25 each) |
+| stability | 15 | critical/error events in 3d (8 points each, query capped at 50), problem devices (10 each), and non-Healthy physical disks (25 each) |
 | boot | 15 | average real boot duration of the last 3 boots, when the Diagnostics-Performance log exists |
 | startup | 10 | enabled startup item count (≤8 → 100, ≥28 → 0) |
 | updates | 5 | days since last hotfix (≤30 → 100, ≥120 → 0) |
-| security | 5 | Defender real-time state (on → 100, AV on but real-time off → 40, off → 0) |
+| security | 5 | `AMRunningMode` plus `root\SecurityCenter2`: Defender real-time on → 100; a registered third-party AV with Defender off → 100 (Windows handed protection over on purpose); Defender passive with no third-party AV → 40; no active protection at all → 0; status unavailable → component excluded |
 
 A pending reboot subtracts 10. When a data source is unavailable, its
 component is excluded and the remaining weights renormalized — the score
@@ -463,7 +468,10 @@ For command output, relay the important lines because the user may not see termi
 - SMART counters (temperature, wear, error counts) usually require an elevated
   shell; without one, report the honest "not available" instead of a clean bill.
 - Defender status is unavailable when a third-party AV replaces Defender or when
-  policy blocks the cmdlet.
+  policy blocks the cmdlet. `-Mode security` distinguishes "a third-party AV is
+  registered, so Defender is off on purpose" from "nothing is protecting this
+  machine" by reading `AMRunningMode` and `root\SecurityCenter2`; report the
+  verdict it prints rather than the raw `RealTimeProtectionEnabled` flag.
 - The Diagnostics-Performance log may be disabled; the `boot` component is then
   dropped from the score rather than guessed.
 - `-Mode issue` is a best-effort keyword router. It prints the route and keyword it

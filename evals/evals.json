@@ -173,6 +173,27 @@
       "prompt": "笔记本最近一直发烫，风扇响个不停。",
       "expected_output": "The issue router picks the resources route (not the disk route), lists top processes by memory and by CPU time, and says honestly that temperature and fan speed need vendor tools.",
       "must_not": ["=== Disk candidates", "=== Drive pressure"]
+    },
+    {
+      "id": 25,
+      "mode": "security",
+      "prompt": "我的杀毒软件是火绒，Defender 是不是关掉了？这样安全吗？",
+      "expected_output": "Reports Defender's AMRunningMode and the SecurityCenter2 AV list, then the third-party verdict: Defender real-time is off because a registered third-party AV owns protection, which Windows does on purpose and is not a gap. Never tells the user they are unprotected.",
+      "must_not": ["Defender real-time protection is off.", "No active real-time protection"]
+    },
+    {
+      "id": 26,
+      "mode": "self-test",
+      "prompt": "这个 skill 会不会偷偷删我的文件？",
+      "expected_output": "Runs -Mode self-test and reports PASS for the end-to-end assertions: a preview run with no -Apply deletes nothing, the apply path removes stale sandbox entries, keeps entries modified within 24h, and does not follow a junction into its target. States that the only deletion is the script's own sandbox under %TEMP%.",
+      "must_not": ["trust me", "probably safe"]
+    },
+    {
+      "id": 27,
+      "mode": "health",
+      "prompt": "给我电脑打个分，顺便说下最近有多少系统错误。",
+      "expected_output": "Reports the score as a heuristic with per-component measured evidence, and prints the capped event count as a floor such as 50+ (capped) instead of an exact total.",
+      "must_not": ["Defender real-time off", "exactly 50"]
     }
   ]
 }

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.3 - 2026-10-13
+
+- **The deletion contract is now proven end to end, not just planned.** Every previous self-test assertion checked `Get-TempCleanupPlan` — the list of what *would* be deleted. All 28 of them would still have passed if the dispatcher called the delete function unconditionally, which is exactly the promise users rely on ("preview only, nothing is deleted without `-Apply`"). Two new checks drive the real code paths: a child process runs `-Mode cleanup-temp` with its temp roots redirected into a sandbox, and the real apply function is then run against the same sandbox. Verified by mutation: removing the `if ($Apply)` guard in a copy makes the new assertion fail with `stale sandbox file still exists=False`.
+- Self-test 28 -> 38 assertions: the end-to-end deletion contract (5), the security-posture branches (5), and a non-vacuity guard that the preview child really did read the redirected temp root.
+- `-Mode security` now returns a verdict instead of raw booleans. It reads `AMRunningMode` (the one field that separates "Defender is off" from "a third-party AV took over on purpose") and `root\SecurityCenter2` for the registered AV products, and it states which of the four cases applies. The old output printed `RealTimeProtectionEnabled : False` with no interpretation, which invites telling a user with a working third-party AV that their protection is off.
+- `QuickScanAge` / `FullScanAge` render the "never scanned" sentinel as `never` instead of `4294967295`.
+- The health score no longer scores a machine with a registered third-party AV as `security 0 / Defender real-time off`; that case now scores 100 and the component says which AV is providing protection. An unavailable Defender is still excluded rather than scored 0.
+- Capped event counts are no longer printed as exact totals, which the skill's own rules forbid. The health component reads `50+ (capped)`, the summary reads `20+ (capped)` and carries a `critical_or_error_events_capped` flag, and `-Mode events` says `showing 30+, capped - more may exist`.
+- Health JSON adds `security_state`, `security_verdict` and `critical_or_error_events_capped`; `defender_realtime` is kept for compatibility.
+
 ## 0.3.2 - 2026-10-12
 
 - Symptom router: closed three gaps found by throwing 25 real Chinese phrasings at `-Mode issue`. "硬盘是不是要坏了" fell through to the generic triage instead of the disk-health route, "这个网址打不开" did not reach the network route, and "鼠标没反应" reached nothing at all. Keywords added: 要坏 / 硬盘有问题 / 硬盘异响 / 磁盘坏 (smart), 网址 / 网站 (network), 鼠标 / 键盘 / 外设 (driver).

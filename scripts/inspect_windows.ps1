@@ -15,8 +15,12 @@
   [string]$Format = 'text'
 )
 
-$WinfixVersion = '0.3.2'
+$WinfixVersion = '0.3.3'
 $ErrorActionPreference = 'SilentlyContinue'
+
+# Captured so the self-test can re-run this script in a child process and prove
+# the end-to-end deletion contract instead of only asserting the plan.
+$WinfixScriptPath = $PSCommandPath
 
 # Emit UTF-8. Windows PowerShell 5.1 otherwise writes the OEM codepage (cp936 on
 # Chinese Windows), so Chinese paths and messages turn into mojibake as soon as
@@ -28,6 +32,8 @@ $MaxFilesPerFolder = 20000   # hard cap of files counted per folder
 $FolderBudgetSeconds = 6     # per-folder wall-clock budget
 $SectionBudgetSeconds = 45   # per-section global wall-clock budget
 $NativeTimeoutSeconds = 20   # default timeout for external commands
+$EventQueryCap = 50          # events pulled for the health score (a floor, not a total)
+$EventSummaryCap = 20        # events pulled for the health summary
 
 # Baseline anti-churn: a snapshot taken minutes ago with the same drives, the
 # same startup set and the same reboot state is worthless, but it still pushes
@@ -164,6 +170,15 @@ function Format-Bytes([double]$Bytes) {
   if ($Bytes -ge 1MB) { return ('{0:N2} MB' -f ($Bytes / 1MB)) }
   if ($Bytes -ge 1KB) { return ('{0:N2} KB' -f ($Bytes / 1KB)) }
   return "$Bytes B"
+}
+
+function Format-ScanAge([object]$Value) {
+  # Get-MpComputerStatus reports "never scanned" as 0xFFFFFFFF. Printed raw it
+  # reads like a real age of 4294967295 days.
+  if ($null -eq $Value) { return 'unknown' }
+  $n = [int64]$Value
+  if ($n -ge 4294967295) { return 'never' }
+  return "$n d"
 }
 
 function Redact-SensitiveText([object]$Value) {
@@ -335,6 +350,66 @@ function Get-DefenderStatus {
   }
 }
 
+function Get-AntivirusProducts {
+  # SecurityCenter2 is the authoritative list of what Windows treats as the
+  # active AV. Defender reporting "real-time off" is *normal* when a third-party
+  # AV is registered, so the Defender flag alone is not a verdict.
+  return Get-Cached 'av-products' {
+    try {
+      @(Get-CimInstance -Namespace 'root\SecurityCenter2' -ClassName AntiVirusProduct -ErrorAction Stop |
+        ForEach-Object { [pscustomobject]@{ name = [string]$_.displayName; state = [int]$_.productState } })
+    } catch { @() }
+  }
+}
+
+function Get-SecurityPosture([object]$DefenderStatus, [object[]]$AvProducts, [switch]$Injected) {
+  # One verdict from both sources, so a caller never has to guess whether
+  # RealTimeProtectionEnabled=False means "unprotected" or "a third-party AV
+  # took over on purpose". score = $null means "exclude from the health score".
+  # -Injected lets the self-test assert the third-party branch, which cannot be
+  # reproduced on a machine that has no third-party AV installed.
+  $defender = if ($Injected) { $DefenderStatus } else { Get-DefenderStatus }
+  $products = if ($Injected) { @($AvProducts) } else { @(Get-AntivirusProducts) }
+  $thirdParty = @($products | Where-Object { $_.name -and $_.name -notmatch 'Defender' } | ForEach-Object { $_.name })
+  $thirdPartyText = $thirdParty -join ', '
+  $mode = if ($defender) { [string]$defender.AMRunningMode } else { '' }
+  $realtime = if ($defender) { [bool]$defender.RealTimeProtectionEnabled } else { $false }
+  if (-not $defender) {
+    $verdict = if ($thirdParty.Count -gt 0) {
+      "Defender status is unavailable (blocked by policy, or replaced); registered AV: $thirdPartyText."
+    } else {
+      'Defender status is unavailable (no Defender, or the cmdlet is blocked by policy).'
+    }
+    return [pscustomobject]@{ state = 'unavailable'; mode = $mode; third_party = @($thirdParty); score = $null; measured = 'unavailable'; verdict = $verdict }
+  }
+  if ($realtime) {
+    $verdict = if ($thirdParty.Count -gt 0) {
+      "Defender real-time protection is on; also registered: $thirdPartyText."
+    } else {
+      'Defender real-time protection is on.'
+    }
+    return [pscustomobject]@{ state = 'protected'; mode = $mode; third_party = @($thirdParty); score = 100; measured = 'Defender real-time on'; verdict = $verdict }
+  }
+  if ($thirdParty.Count -gt 0) {
+    return [pscustomobject]@{
+      state = 'third-party'; mode = $mode; third_party = @($thirdParty); score = 100
+      measured = "third-party AV: $thirdPartyText"
+      verdict = "Defender real-time is off because a third-party AV is registered ($thirdPartyText); Windows hands protection to it on purpose. This is not a gap."
+    }
+  }
+  $passive = [bool]($mode -match 'Passive')
+  return [pscustomobject]@{
+    state = $(if ($passive) { 'passive' } else { 'unprotected' }); mode = $mode; third_party = @()
+    score = $(if ($passive) { 40 } else { 0 })
+    measured = $(if ($passive) { 'Defender passive, no third-party AV registered' } else { 'no active real-time protection' })
+    verdict = $(if ($passive) {
+        'Defender is in passive mode and no third-party AV is registered: real-time protection is not active.'
+      } else {
+        'No third-party AV is registered and Defender real-time protection is off: this machine currently has no active real-time protection.'
+      })
+  }
+}
+
 function Get-DiskHealthData {
   return Get-Cached 'disk-health' {
     $disks = @()
@@ -371,9 +446,10 @@ function Get-DiskHealthData {
 function Get-HealthData {
   $score = Get-HealthScore
   $os = Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue
-  $events = Get-RecentEvents 3 20
+  $events = Get-RecentEvents 3 $EventSummaryCap
   $problemDevices = Get-ProblemDevices
   $defender = Get-DefenderStatus
+  $security = Get-SecurityPosture
   $memory = Get-MemoryData
   $drives = @(Get-DriveData)
   $diskHealth = Get-DiskHealthData
@@ -387,8 +463,11 @@ function Get-HealthData {
       uptime_days = [math]::Round(((Get-Date) - $os.LastBootUpTime).TotalDays, 2)
       memory_used_percent = $memory.used_percent
       critical_or_error_events_last_3_days = $events.Count
+      critical_or_error_events_capped = [bool]($events.Count -ge $EventSummaryCap)
       problem_devices = $problemDevices.Count
       defender_realtime = if ($defender) { $defender.RealTimeProtectionEnabled } else { $null }
+      security_state = $security.state
+      security_verdict = $security.verdict
       drive_status = @($drives | Select-Object device, free_percent, status)
       physical_disks = @($diskHealth.disks | Select-Object name, media, health, operational, size_bytes)
     }
@@ -399,7 +478,8 @@ function Get-HealthData {
       if ($events.Count -gt 0) { 'Recent critical/error system events exist.' }
       if ($problemDevices.Count -gt 0) { 'Windows reports problem devices.' }
       if ($diskHealth.unhealthy.Count -gt 0) { 'A physical disk reports a non-Healthy state; back up before repairing anything.' }
-      if ($defender -and $defender.RealTimeProtectionEnabled -eq $false) { 'Defender real-time protection is off.' }
+      if ($security.state -eq 'unprotected') { 'No active real-time protection: no third-party AV is registered and Defender real-time is off.' }
+      if ($security.state -eq 'passive') { 'Defender is in passive mode and no third-party AV is registered; real-time protection is not active.' }
       if ($score.pending_reboot) { 'A reboot is pending; some fixes stay incomplete until then.' }
     )
     recommended_actions = @(
@@ -466,7 +546,7 @@ function Get-ScheduledTaskInventory {
 function Get-HealthScore {
   $drives = @(Get-DriveData)
   $memory = Get-MemoryData
-  $events = Get-RecentEvents 3 50
+  $events = Get-RecentEvents 3 $EventQueryCap
   $problemDevices = Get-ProblemDevices
   $boot = Get-BootDurations
   $startupCount = @(Get-StartupInventory).Count
@@ -474,7 +554,7 @@ function Get-HealthScore {
   $updateAgeDays = if ($lastHotfix -and $lastHotfix.InstalledOn) { [int][math]::Round(((Get-Date) - $lastHotfix.InstalledOn).TotalDays) } else { $null }
   $pending = Get-PendingReboot
   $diskHealth = Get-DiskHealthData
-  $defender = Get-DefenderStatus
+  $security = Get-SecurityPosture
 
   $components = @()
   if ($drives.Count -gt 0) {
@@ -489,9 +569,11 @@ function Get-HealthScore {
   }
   $stabilityPenalty = $events.Count * 8 + $problemDevices.Count * 10
   if ($diskHealth.unhealthy.Count -gt 0) { $stabilityPenalty += 25 }
+  # The query is capped, so never print a capped count as an exact total.
+  $eventLabel = if ($events.Count -ge $EventQueryCap) { "$EventQueryCap+ (capped)" } else { [string]$events.Count }
   $components += [pscustomobject]@{
     key = 'stability'; weight = 15; score = [int][math]::Max(0, 100 - $stabilityPenalty)
-    measured = "$($events.Count) critical/error events in 3d; $($problemDevices.Count) problem devices; $($diskHealth.unhealthy.Count) unhealthy disks"
+    measured = "$eventLabel critical/error events in 3d; $($problemDevices.Count) problem devices; $($diskHealth.unhealthy.Count) unhealthy disks"
   }
   if ($boot) {
     $avgS = [math]::Round((($boot | Measure-Object -Property total_ms -Average).Average) / 1000)
@@ -504,10 +586,8 @@ function Get-HealthScore {
     $s = if ($updateAgeDays -le 30) { 100 } elseif ($updateAgeDays -ge 120) { 0 } else { [math]::Round(((120 - $updateAgeDays) / 90) * 100) }
     $components += [pscustomobject]@{ key = 'updates'; weight = 5; score = [int]$s; measured = "last hotfix ${updateAgeDays} days ago" }
   }
-  if ($defender -and $null -ne $defender.RealTimeProtectionEnabled) {
-    $s = if ($defender.RealTimeProtectionEnabled) { 100 } elseif ($defender.AntivirusEnabled) { 40 } else { 0 }
-    $defenderState = if ($defender.RealTimeProtectionEnabled) { 'on' } else { 'off' }
-    $components += [pscustomobject]@{ key = 'security'; weight = 5; score = [int]$s; measured = "Defender real-time $defenderState" }
+  if ($null -ne $security.score) {
+    $components += [pscustomobject]@{ key = 'security'; weight = 5; score = [int]$security.score; measured = $security.measured }
   }
 
   $totalWeight = ($components | Measure-Object -Property weight -Sum).Sum
@@ -710,9 +790,10 @@ function Show-Health {
     Computer = $summary.computer
     UptimeDays = $summary.uptime_days
     MemoryUsedPercent = $summary.memory_used_percent
-    CriticalOrErrorEventsLast3Days = $summary.critical_or_error_events_last_3_days
+    CriticalOrErrorEventsLast3Days = $(if ($summary.critical_or_error_events_capped) { "$($summary.critical_or_error_events_last_3_days)+ (capped)" } else { [string]$summary.critical_or_error_events_last_3_days })
     ProblemDevices = $summary.problem_devices
     DefenderRealtime = $summary.defender_realtime
+    SecurityState = $summary.security_state
   } | Format-List
 
   '=== Drive pressure ==='
@@ -927,7 +1008,8 @@ function Show-Events {
   # Full event messages used to produce 200+ lines and blow up the agent's
   # context; messages are collapsed to one line and capped.
   $data = Get-SystemEventData 7 30
-  "=== System critical/error events, last $($data.days) days (showing $($data.count)) ==="
+  $capNote = if ($data.count -ge 30) { '+, capped - more may exist' } else { '' }
+  "=== System critical/error events, last $($data.days) days (showing $($data.count)$capNote) ==="
   if ($data.count -eq 0) { 'None.'; return }
   foreach ($event in $data.events) {
     "$($event.time) | $($event.level) | $($event.provider) $($event.id)"
@@ -1050,14 +1132,25 @@ function Show-Printer {
 }
 
 function Show-Security {
-  '=== Defender status ==='
+  $posture = Get-SecurityPosture
   $defender = Get-DefenderStatus
+  '=== Defender status ==='
   if ($defender) {
-    $defender | Select-Object AMServiceEnabled, AntivirusEnabled, RealTimeProtectionEnabled, AntispywareEnabled,
-      QuickScanAge, FullScanAge, NISEnabled | Format-List
+    $defender | Select-Object AMRunningMode, AMServiceEnabled, AntivirusEnabled, RealTimeProtectionEnabled,
+      AntispywareEnabled, NISEnabled, IsTamperProtected,
+      @{ Name = 'QuickScanAge'; Expression = { Format-ScanAge $_.QuickScanAge } },
+      @{ Name = 'FullScanAge'; Expression = { Format-ScanAge $_.FullScanAge } } | Format-List
   } else {
     'Defender status unavailable (no Defender, or the cmdlet is blocked by policy).'
   }
+  '=== Registered antivirus products (SecurityCenter2) ==='
+  $products = @(Get-AntivirusProducts)
+  if ($products.Count -eq 0) {
+    'None reported (SecurityCenter2 returned no AV product).'
+  } else {
+    $products | Select-Object name, state | Format-Table -AutoSize
+  }
+  "Verdict: $($posture.verdict)"
   '=== Firewall profiles ==='
   try {
     Get-NetFirewallProfile -ErrorAction Stop | Select-Object Name, Enabled, DefaultInboundAction, DefaultOutboundAction | Format-Table -AutoSize
@@ -1797,8 +1890,11 @@ function Show-TempPreview {
   }
 }
 
-function Invoke-TempCleanup {
-  $plan = @(Get-TempCleanupPlan)
+function Invoke-TempCleanup([string[]]$Roots) {
+  # $Roots is only used by the self-test, which points the real delete path at
+  # its own sandbox. The CLI calls this with no arguments, and the allowlist in
+  # Test-SafeTempRoot still validates every root either way.
+  $plan = @(Get-TempCleanupPlan $Roots)
   $report = @()
   foreach ($entry in $plan) {
     if (-not $entry.Allowed) { Write-Host "Skipped unsafe temp path: $($entry.Root)"; continue }
@@ -1902,6 +1998,68 @@ function Invoke-SelfTest {
     }
     $refused = @(Get-TempCleanupPlan @('C:\Windows')) | Select-Object -First 1
     [void]$results.Add((New-SelfTestResult 'C:\Windows is refused as a cleanup root' (-not [bool]$refused.Allowed) "allowed=$($refused.Allowed)"))
+
+    # --- End-to-end deletion contract -------------------------------------
+    # Everything above asserts the *plan*. Those assertions would still all pass
+    # if the dispatcher called the delete function unconditionally, so the
+    # user-facing promise ("without -Apply this cannot delete anything") is not
+    # actually covered by them. These two checks drive the real code paths: a
+    # child process running -Mode cleanup-temp with its temp roots pointed at
+    # this sandbox, then the real apply function on the same sandbox.
+    $e2eTemp = Join-Path $sandbox 'e2e\tmp'
+    $e2eLocal = Join-Path $sandbox 'e2e\local'
+    New-Item -ItemType Directory -Path $e2eTemp, $e2eLocal -Force | Out-Null
+    $e2eOld = Join-Path $e2eTemp 'e2e-stale.tmp'
+    Set-Content -LiteralPath $e2eOld -Value ('y' * 2048)
+    (Get-Item -LiteralPath $e2eOld).LastWriteTime = (Get-Date).AddDays(-4)
+    $e2eFresh = Join-Path $e2eTemp 'e2e-fresh.tmp'
+    Set-Content -LiteralPath $e2eFresh -Value 'y'
+    if ($WinfixScriptPath -and (Test-Path -LiteralPath $WinfixScriptPath)) {
+      $savedTemp = $env:TEMP
+      $savedTmp = $env:TMP
+      $savedLocalAppData = $env:LOCALAPPDATA
+      $childText = ''
+      try {
+        $env:TEMP = $e2eTemp
+        $env:TMP = $e2eTemp
+        $env:LOCALAPPDATA = $e2eLocal
+        $childText = (& powershell -NoProfile -ExecutionPolicy Bypass -File $WinfixScriptPath -Mode cleanup-temp -Format json 2>$null | Out-String)
+      } finally {
+        $env:TEMP = $savedTemp
+        $env:TMP = $savedTmp
+        $env:LOCALAPPDATA = $savedLocalAppData
+      }
+      $previewKept = Test-Path -LiteralPath $e2eOld
+      [void]$results.Add((New-SelfTestResult 'preview (no -Apply) deletes nothing, end to end' $previewKept "stale sandbox file still exists=$previewKept"))
+      # Non-vacuity: the file surviving proves nothing if the child never looked
+      # at this root, so require the preview output to name the sandbox.
+      $sawSandbox = [bool]($childText -match [regex]::Escape((Split-Path $sandbox -Leaf)))
+      [void]$results.Add((New-SelfTestResult 'that preview run really did read the redirected temp root' $sawSandbox 'guards against a vacuous pass'))
+    } else {
+      [void]$results.Add((New-SelfTestResult 'preview end-to-end test' $false "cannot re-run this script (path='$WinfixScriptPath')"))
+    }
+    [void](Invoke-TempCleanup -Roots @($fakeTemp, $e2eTemp))
+    $staleGone = (-not (Test-Path -LiteralPath $oldFile)) -and (-not (Test-Path -LiteralPath $e2eOld))
+    [void]$results.Add((New-SelfTestResult 'apply does delete stale entries, end to end' $staleGone 'old.tmp and e2e-stale.tmp removed'))
+    $freshKept = (Test-Path -LiteralPath $freshFile) -and (Test-Path -LiteralPath $e2eFresh)
+    [void]$results.Add((New-SelfTestResult 'apply keeps entries modified within 24h, end to end' $freshKept 'fresh.tmp and e2e-fresh.tmp kept'))
+    if ($junctionMade) {
+      [void]$results.Add((New-SelfTestResult 'apply never follows a junction into its target' (Test-Path -LiteralPath $targetFile) $targetFile))
+    }
+
+    # --- Security posture branches ---------------------------------------
+    # The third-party-AV case cannot be reproduced on a machine that has none,
+    # and getting it wrong is what made "Defender real-time off" read as a
+    # problem when Windows had simply handed protection to another AV.
+    $thirdPartyAv = Get-SecurityPosture -Injected -DefenderStatus ([pscustomobject]@{ AMRunningMode = 'Passive'; RealTimeProtectionEnabled = $false; AntivirusEnabled = $false }) -AvProducts @([pscustomobject]@{ name = 'Example AV'; state = 0 })
+    [void]$results.Add((New-SelfTestResult 'a registered third-party AV is not scored as missing protection' (($thirdPartyAv.state -eq 'third-party') -and ($thirdPartyAv.score -eq 100)) "state=$($thirdPartyAv.state) score=$($thirdPartyAv.score)"))
+    [void]$results.Add((New-SelfTestResult 'the third-party verdict names the AV' ([bool]($thirdPartyAv.verdict -match 'Example AV')) $thirdPartyAv.verdict))
+    $unprotected = Get-SecurityPosture -Injected -DefenderStatus ([pscustomobject]@{ AMRunningMode = 'Not running'; RealTimeProtectionEnabled = $false; AntivirusEnabled = $false }) -AvProducts @()
+    [void]$results.Add((New-SelfTestResult 'Defender off with no third-party AV is reported as unprotected' (($unprotected.state -eq 'unprotected') -and ($unprotected.score -eq 0)) "state=$($unprotected.state) score=$($unprotected.score)"))
+    $protected = Get-SecurityPosture -Injected -DefenderStatus ([pscustomobject]@{ AMRunningMode = 'Normal'; RealTimeProtectionEnabled = $true; AntivirusEnabled = $true }) -AvProducts @()
+    [void]$results.Add((New-SelfTestResult 'Defender real-time on is scored as protected' (($protected.state -eq 'protected') -and ($protected.score -eq 100)) "state=$($protected.state) score=$($protected.score)"))
+    $unknown = Get-SecurityPosture -Injected -DefenderStatus $null -AvProducts @()
+    [void]$results.Add((New-SelfTestResult 'an unavailable Defender is excluded from the score, not scored 0' (($unknown.state -eq 'unavailable') -and ($null -eq $unknown.score)) "state=$($unknown.state) score=$($unknown.score)"))
   } finally {
     Remove-Item -LiteralPath $sandbox -Recurse -Force -ErrorAction SilentlyContinue
   }

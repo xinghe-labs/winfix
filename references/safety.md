@@ -41,11 +41,20 @@ These are not style advice; they are implemented and self-tested:
    root are excluded from the deletion plan and never counted as folder size.
 4. **Re-check before delete.** The parent is re-validated against the allowlist
    immediately before each `Remove-Item`.
-5. **Bounded scanning.** 20000 files / 6s per folder, 45s per section, hard
+5. **Preview cannot delete, proven end to end.** `-Mode cleanup-temp` without
+   `-Apply` is tested by running the real dispatcher in a child process whose
+   temp roots point at a sandbox containing a stale file, then asserting the
+   file is still there. Removing the `if ($Apply)` guard in a copy of the script
+   makes that assertion fail, so the test has teeth. The `-Apply` path is tested
+   the same way: stale entries go, entries modified within 24h stay, and a
+   junction's target is untouched.
+6. **Bounded scanning.** 20000 files / 6s per folder, 45s per section, hard
    timeouts on every external command. `full`/`sampled`/`partial`/`missing` is
    reported per number.
-6. **Redaction before display.** `user:password@` in URLs and `password=`/`token=`
+7. **Redaction before display.** `user:password@` in URLs and `password=`/`token=`
    style values become `***`.
+8. **Capped queries say so.** Event counts come from a capped query, so they are
+   printed as `50+ (capped)` / `showing 30+, capped` rather than as a total.
 
 ## Reporting language
 

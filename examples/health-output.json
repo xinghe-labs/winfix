@@ -1,28 +1,28 @@
 {
   "mode": "health",
-  "version": "0.3.2",
-  "generated_at": "2026-10-12T23:05:31",
+  "version": "0.3.3",
+  "generated_at": "2026-10-13T12:55:34",
   "score": {
-    "total": 38,
+    "total": 20,
     "pending_reboot": true,
     "components": [
       {
         "key": "disk",
         "weight": 30,
         "score": 36,
-        "measured": "min drive free 12.2%"
+        "measured": "min drive free 12.1%"
       },
       {
         "key": "memory",
         "weight": 25,
-        "score": 84,
-        "measured": "memory used 65.5%"
+        "score": 17,
+        "measured": "memory used 89%"
       },
       {
         "key": "stability",
         "weight": 15,
         "score": 0,
-        "measured": "50 critical/error events in 3d; 0 problem devices; 0 unhealthy disks"
+        "measured": "50+ (capped) critical/error events in 3d; 0 problem devices; 0 unhealthy disks"
       },
       {
         "key": "startup",
@@ -34,33 +34,36 @@
         "key": "updates",
         "weight": 5,
         "score": 100,
-        "measured": "last hotfix 13 days ago"
+        "measured": "last hotfix 14 days ago"
       },
       {
         "key": "security",
         "weight": 5,
         "score": 0,
-        "measured": "Defender real-time off"
+        "measured": "no active real-time protection"
       }
     ],
     "note": "Heuristic score from live measurements; unavailable components are excluded and the remaining weights renormalized. Not a benchmark."
   },
   "summary": {
     "computer": "EXAMPLE-PC",
-    "uptime_days": 1.57,
-    "memory_used_percent": 65.5,
+    "uptime_days": 2.15,
+    "memory_used_percent": 89,
     "critical_or_error_events_last_3_days": 20,
+    "critical_or_error_events_capped": true,
     "problem_devices": 0,
     "defender_realtime": false,
+    "security_state": "unprotected",
+    "security_verdict": "No third-party AV is registered and Defender real-time protection is off: this machine currently has no active real-time protection.",
     "drive_status": [
       {
         "device": "C:",
-        "free_percent": 20.2,
-        "status": "ok"
+        "free_percent": 19.7,
+        "status": "watch"
       },
       {
         "device": "D:",
-        "free_percent": 12.2,
+        "free_percent": 12.1,
         "status": "watch"
       }
     ],
@@ -75,8 +78,10 @@
     ]
   },
   "findings": [
+    "At least one drive is below 20% free; worth watching.",
+    "Memory usage is high.",
     "Recent critical/error system events exist.",
-    "Defender real-time protection is off.",
+    "No active real-time protection: no third-party AV is registered and Defender real-time is off.",
     "A reboot is pending; some fixes stay incomplete until then."
   ],
   "recommended_actions": [
